@@ -1,0 +1,90 @@
+{
+  "name": "versus-qwen",
+  "displayName": "Versus for Qwen",
+  "description": "IACDM orchestrator for Qwen Code — 8-phase structured development with adversarial critique, verification gates, and safeguards that close the AI verification gap",
+  "version": "0.1.0",
+  "publisher": "JasmineMoreira",
+  "author": "Jasmine Moreira",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jasminemoreira/Versus"
+  },
+  "bugs": {
+    "url": "https://github.com/jasminemoreira/Versus/issues"
+  },
+  "homepage": "https://github.com/jasminemoreira/Versus#readme",
+  "keywords": [
+    "ai",
+    "agent",
+    "methodology",
+    "convergence",
+    "qwen",
+    "mcp",
+    "safeguards",
+    "architecture",
+    "code-quality"
+  ],
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18.0.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "icon": "icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "versus-qwen",
+          "title": "Versus for Qwen",
+          "icon": "$(layers)"
+        }
+      ]
+    },
+    "views": {
+      "versus-qwen": [
+        {
+          "id": "versus-qwen.phaseView",
+          "name": "Methodology State"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "versus-qwen.initProject",
+        "title": "Versus Qwen: Initialize Project"
+      },
+      {
+        "command": "versus-qwen.refreshView",
+        "title": "Versus Qwen: Refresh Sidebar"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "compile:mcp": "tsc -p ./tsconfig.mcp.json",
+    "watch": "tsc -watch -p ./",
+    "bundle": "node scripts/bundle.mjs",
+    "build": "npm run compile && npm run compile:mcp && npm run bundle",
+    "lint": "eslint src",
+    "test": "node ./out/test/engine.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.27.3",
+    "eslint": "^9.0.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}

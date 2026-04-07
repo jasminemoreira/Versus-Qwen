@@ -1,0 +1,8 @@
+out/
+node_modules/
+*.vsix
+.versus/
+.qwen/
+.claude/
+.mcp.json
+specs/
