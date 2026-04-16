@@ -65,10 +65,10 @@ export function getCompactGuidance(phase: number): string[] {
       lines.push("BINDING CONSTRAINTS in test code: use ONLY the tech stack approved in P1 — visible in Decision history above. Do NOT introduce test frameworks or runtimes not approved in P1."); // ← [P1 tech binding in P6 test code]
       lines.push("DO: Write spec-driven tests, execute them, hand off manual testing to user, wait for return. | DON'T: Simulate manual testing mentally, mark manual_testing without user confirmation, use unapproved tech in test code."); // ← [AP5, Step 4]
       break;
-    case 7: // ← full: PHASE_7_GUIDANCE — double-loop, consolidation, meta-iteration
-      lines.push("INSTRUCTIONS P7: Double-loop: evaluate PRODUCT and PROCESS. Update specs/. 5 steps: human first→AI→consolidate→apply→version."); // ← [Double-loop learning]
-      lines.push("Meta-iteration: After completing P7, offer start_new_cycle() via AskUserQuestion. NEVER use init_project() for v2 — it wipes context. NEVER modify SKILL.md without approval. R5: MUST DISPLAY double-loop report + consolidation table + meta-iteration offer."); // ← [Meta-iteration, start_new_cycle]
-      lines.push("DO: Collect human feedback first, update specs/, offer meta-iteration. | DON'T: Use init_project() instead of start_new_cycle(), modify SKILL.md without approval."); // ← [Step 1 — human first, S6]
+    case 7: // ← full: PHASE_7_GUIDANCE — update specs/, product evaluation, project lessons, meta-iteration
+      lines.push("INSTRUCTIONS P7: Step 1: Update specs/ (validation, technical, references) with actual results. Step 2: Product evaluation — ask user via AskUserQuestion if software meets P0 requirements. Step 3: Capture 3-5 project lessons (domain insights, stack pitfalls, patterns that worked/failed, wrong P0/P1 assumptions) and deposit in specs/."); // ← [Update specs, product eval, project lessons]
+      lines.push("Meta-iteration: After completing P7, offer start_new_cycle() via AskUserQuestion. NEVER use init_project() for v2 — it wipes context. R5: MUST DISPLAY product evaluation + project lessons + meta-iteration offer."); // ← [Meta-iteration, start_new_cycle]
+      lines.push("DO: Update specs/, ask user about product, capture project lessons, offer meta-iteration. | DON'T: Use init_project() instead of start_new_cycle(), evaluate the methodology itself (that is not the user's responsibility), add lessons that are not tied to this project."); // ← [project-focused lessons only]
       break;
   }
 

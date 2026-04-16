@@ -21,7 +21,7 @@ Per phase:
 - P4: Convergence verification report (exit criteria + safeguards + specs status). LLM Switch Point notification.
 - P5: Progress announcements ("X/N completed, next: Y") after each file.
 - P6: Test Map (spec→test→type). Spec Coverage Report (COVERED/NOT COVERED/GAPS). Testing status record (TESTING STATUS / PASS / FAIL / NEXT). Manual testing report.
-- P7: Double-loop learning report. Consolidation table (source | phase | proposal | justification). Meta-iteration offer.
+- P7: Product evaluation. Project lessons (domain, stack, patterns, wrong assumptions). Meta-iteration offer.
 Rule: If you computed it, SHOW it. The user cannot validate what they cannot see.`,
   R4_TIMING: {
     0: "R4: Populate specs/ — refs, domain, competitors.",
@@ -610,33 +610,26 @@ This ensures the NEXT session knows exactly what changed since the last test rou
 ### Next Step (MANDATORY when all testing is complete):
 Both automated and manual testing must be done before advancing. When both gates are ✅: call advance_phase() to move to Phase 7. Then call get_phase_guidance() and begin Phase 7 post-review immediately.`;
 
-// [G5] Meta-iteration v1→v2 + [G11] double-loop + [G8] AV type
+// [G5] Meta-iteration v1→v2 + [G8] AV type
 const PHASE_7_GUIDANCE = `## Phase 7 — Post-Review
-### Verification: Human-AV (operator evaluates lessons and approves method changes)
+### Verification: Human-AV (operator confirms product works and captures project lessons)
 
-### Update specs/:
+### Step 1 — Update specs/:
 - specs/validation → actual results (expected vs obtained)
 - specs/technical → final decisions, discarded algorithms and why
-- specs/references → references discovered during correction
+- specs/references → references discovered during implementation
 
-### Double-loop learning (Argyris) (⚠️ MUST DISPLAY both evaluations in chat):
-Single-loop: evaluate the PRODUCT (does the software work?).
-Double-loop: evaluate the PROCESS (did the methodology work? Where was there friction?).
-Phase 7 does BOTH.
+### Step 2 — Product evaluation (⚠️ MUST DISPLAY in chat):
+Ask the user via AskUserQuestion: does the software meet the P0 requirements? What was missed? Any pending issues to carry into v2?
 
-### Methodology Self-Improvement (5 steps):
+### Step 3 — Project lessons (⚠️ MUST DISPLAY as list in chat):
+Capture 3-5 lessons about THIS project (not about the methodology):
+- Domain insights that emerged during implementation (edge cases, invariants, constraints discovered)
+- Tech stack pitfalls encountered (library quirks, integration gotchas, performance surprises)
+- Patterns that worked / didn't work for this project's specific constraints
+- Assumptions from P0/P1 that turned out wrong
 
-**Step 1 — Human collection (mandatory FIRST):** Ask via AskUserQuestion if any part caused friction or failed. The human experienced the process and detects friction that the AI doesn't perceive about itself.
-
-**Step 2 — AI self-assessment (complementary):** Phase that lacked checklist, absent safeguard, inadequate template, valueless rule, recurring pattern.
-
-**Step 3 — Consolidate** in table (⚠️ MUST DISPLAY table in chat: source [human/AI] | phase | proposal | justification).
-
-**Step 4 — Apply** via AskUserQuestion: review one by one (recommended) / apply all / don't update. For each diff, show before/after and request approval. Proposals go through gate: operator approves or rejects.
-
-**Step 5 — Increment version** of SKILL.md.
-
-Limits: AI has agreement bias about itself. Human detects friction → AI proposes → human approves. Never modify SKILL.md without approval.
+Deposit lessons in specs/technical or specs/references — they become valuable input for v2 via start_new_cycle.
 
 ### Meta-iteration v1.0 → v2.0 (⚠️ MUST DISPLAY offer in chat):
 After completing all Phase 7 steps, you MUST offer the user the option to start a new development cycle via AskUserQuestion:
