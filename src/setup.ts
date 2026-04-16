@@ -129,7 +129,8 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
               "The MCP server versus-qwen manages the IACDM methodology state. All methodology interactions MUST go through MCP tools: " +
               "record_decision() for decisions, update_score() for scoring, mark_exit_criterion() for criteria, advance_phase() for transitions. " +
               "If get_phase_state returns an error, ask the user if they want to initialize with init_project(). " +
-              "If in Phase 6: also call get_decisions(phase=6) to recover testing progress — manual testing spans sessions.",
+              "If in Phase 6: also call get_decisions(phase=6) to recover testing progress — manual testing spans sessions.\n" +
+              "VISIBILITY: after loading state, START your first response with a one-line banner so the user knows Versus is active, e.g.: '📍 Versus ativo — Fase X (name), iteração Y. Próximo passo: <one line>.' The user must SEE that methodology context was loaded; do not load silently.",
           },
         ],
       },
@@ -145,7 +146,8 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
               "3. Call mcp__versus-qwen__get_decisions() to reload previous decisions\n" +
               "4. Read MEMORY.md (auto memory) for additional context\n" +
               "DO NOT read .versus/state.json or .versus/server.js directly. DO NOT skip these calls. " +
-              "Continue where you left off only AFTER completing all 4 steps above.",
+              "Continue where you left off only AFTER completing all 4 steps above.\n" +
+              "VISIBILITY: after recovering, START your first response with a one-line banner so the user knows Versus recovered, e.g.: '📍 Versus retomado — Fase X (name), iteração Y. Continuando: <one line>.'",
           },
         ],
       },

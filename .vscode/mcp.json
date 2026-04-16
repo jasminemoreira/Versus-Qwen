@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "versus-copilot": {
+      "command": "node",
+      "args": [
+        "/home/jasmine/INDT/Versus_Qwen/.versus/server.js"
+      ]
+    }
+  }
+}

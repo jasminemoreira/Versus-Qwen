@@ -142,6 +142,7 @@ export function handleInitProject(
       `Structure created: state.json, server.js + 6 hooks (in .versus/), specs/ (9 subfolders), .qwen/settings.json (MCP + hooks). ` +
       `Everything local — no external dependencies. ` +
       `MANDATORY ACTION: Read ${settingsPath} with the Read tool to load permissions and hooks. ` +
-      `Then call get_phase_guidance() for Phase 0 instructions.`,
+      `Then call get_phase_guidance() for Phase 0 instructions. ` +
+      `USER TIP: the user can type "retomar Versus" in chat at any time to recover methodology context — treat that phrase as an instruction to call get_phase_state() + get_phase_guidance() + get_decisions().`,
   });
 }

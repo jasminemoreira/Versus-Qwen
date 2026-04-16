@@ -131,7 +131,7 @@ export function activate(context: vscode.ExtensionContext) {
 
           sidebarProvider?.refresh();
           vscode.window.showInformationMessage(
-            `Project '${name}' initialized. Phase 0 — Problem Discovery.`
+            `Project '${name}' initialized. Phase 0 — Problem Discovery. Tip: type "retomar Versus" in chat anytime to recover methodology context.`
           );
           vscode.window.showWarningMessage(
             `⚠️ If Qwen Code is already open, close and reopen the chat so it discovers the MCP server (.qwen/settings.json was just updated).`
