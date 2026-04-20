@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.4] - 2026-04-08
+
+### Added
+- **specs/README.md generated on init_project.** Contains: (1) a mini operation manual — "retomar Versus" anchor phrase and MCP discovery behavior, (2) description of each of the 9 subdirectories (domain, references, technical, examples, design, models, datasets, validation, competitors), (3) mapping of which subdirectory feeds which phase. Written idempotently (never overwrites user edits). Reduces onboarding friction — users no longer need to guess what goes in each folder.
+
+## [0.1.3] - 2026-04-08
+
+### Fixed
+- **Prerequisites dialog button targets the right destination.** Previously, when Node.js was missing, the error dialog offered a single "Open Marketplace" button that searched the VSCode Marketplace — but Node.js is not a VSCode extension. Now the dialog shows context-aware buttons: "Download Node.js" opens https://nodejs.org/en/download in the browser, "Open Marketplace" opens the marketplace only when Qwen Code Companion is missing. If both are missing, both buttons appear.
+
 ## [0.1.2] - 2026-04-08
 
 ### Added

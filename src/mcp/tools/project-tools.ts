@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
-import { ensureSettings, ensureMcpInQwenSettings } from "../../setup";
+import { ensureSettings, ensureMcpInQwenSettings, ensureSpecsReadme } from "../../setup";
 
 const SPECS_SUBDIRS = [
   "references",
@@ -118,6 +118,8 @@ export function handleInitProject(
     }
     specsCreated = true;
   }
+  // Write specs/README.md (idempotent — never overwrites user edits)
+  ensureSpecsReadme(workspace);
 
   // Ensure MCP server registered in .qwen/settings.json
   const mcpCreated = ensureMcpInQwenSettings(workspace);
