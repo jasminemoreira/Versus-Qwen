@@ -524,6 +524,16 @@ const PHASE_6_GUIDANCE = `## Phase 6 — Tests
 ### S4 — Explicit Verification: NEVER assume tests passed. Always execute and verify output.
 **CAUTION AP5 (Absence of human-AV):** Automated tests verify formalizable properties. Semantic adequacy, usability, and domain correctness REQUIRE human judgment.
 
+### Step 0 — Session Renewal (RECOMMENDED before testing):
+Testing your own code with the same context that wrote it activates confirmation bias ("of course it works, I just wrote it"). Recommend the user start a fresh chat session before Phase 6 to decouple implementer from tester (S4 spirit, automated form).
+
+Use AskUserQuestion with the following options (default: "New session"):
+- **"New session"** — exit current chat, open a new one, type \`retomar Versus\` to recover state, then resume Phase 6
+- **"Continue here"** — proceed in current session (faster but less rigorous; may miss issues the implementer didn't anticipate)
+
+If user picks "New session": call record_decision(phase=6, category='testing', content='SESSION RENEWAL: user will return in new chat — recover with retomar Versus') and STOP your response. The user will resume.
+If user picks "Continue here": proceed to Step 1.
+
 ### Step 1 — Spec-Driven Test Protocol (MANDATORY before writing any test):
 Test against SPECS, not against implementation. The code you wrote is suspect — the specs are the source of truth.
 
@@ -552,12 +562,31 @@ A passing test only validates a spec if it verifies the EXACT criterion. Example
 - Spec says "supports 100 concurrent users" → test checks single user → spec NOT verified
 - Spec says "error message is user-friendly" → test checks error is thrown → spec NOT verified
 
-### Step 2 — Write and Execute Tests:
+### Step 2 — UI Testing Tooling (only if P1 declared a UI module):
+Check P1 decisions and projectSpec for a UI module. If present, before implementing tests, propose appropriate automation tooling:
+
+1. Identify project stack (read get_phase_state().projectSpec.stack and Phase 1 decisions)
+2. Match to a tooling category and present 2-3 options via AskUserQuestion (mark recommended) plus an "Other" option for the user to specify:
+
+| Stack | Recommended | Alternatives |
+|---|---|---|
+| Web SPA | Playwright | Puppeteer, Cypress |
+| React Native | Detox | Maestro |
+| Electron | Playwright (with electron support) | Spectron |
+| CLI | bats | expect |
+| Mobile native | Maestro | Appium, XCUITest |
+
+3. Install the chosen tool and write at least ONE smoke test exercising the primary user flow before regular spec-driven tests.
+4. Record decision: record_decision(phase=6, category='testing', content='UI TOOL: <chosen> — <rationale>')
+
+If P1 declared no UI module, skip this step. Proceed to Step 3.
+
+### Step 3 — Write and Execute Tests:
 - specs/datasets → test against ground truth (if empty, generate synthetic data and deposit in specs/datasets)
 - Execute ALL tests. Read output carefully. Fix failures before proceeding.
 - After all automated tests pass, run the actual application/artifact and verify behavior end-to-end.
 
-### Step 3 — Record Spec Coverage (MANDATORY):
+### Step 4 — Record Spec Coverage (MANDATORY):
 Record the coverage checklist as a persistent, traceable decision:
 record_decision(phase=6, category='spec-coverage', content='SPEC COVERAGE REPORT: ...')
 
@@ -567,7 +596,7 @@ The content MUST follow this structure:
 - NEGATIVE TESTS: [count positive / count negative / ratio]
 - GAPS: [any spec where test exists but does NOT verify the exact criterion]
 
-### Step 4 — Manual Exploratory Testing (MANDATORY before Phase 7):
+### Step 5 — Manual Exploratory Testing (MANDATORY before Phase 7):
 **Important: manual testing MUST be performed by the human user, not simulated by the AI.**
 The AI cannot replicate real user interactions. After automated tests pass:
 1. Present the test plan to the user: list the Phase 0 use cases they must execute and the edge cases to test.

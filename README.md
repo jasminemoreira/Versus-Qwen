@@ -24,6 +24,8 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Adversarial critique** with 7 universal + 8 conditional specialized lenses
 - **VS Code sidebar** showing methodology state in real time
 - **Multi-session testing protocol** for Phase 6 continuity across sessions
+- **Phase 6 session renewal** to decouple implementer from tester (reduces confirmation bias)
+- **UI testing tooling proposal** — Phase 6 detects UI modules from Phase 1 and offers stack-appropriate browser/automation tools (Playwright, Puppeteer, Cypress, Detox, Maestro, etc.) via interactive selection
 
 ## How It Works
 
@@ -154,6 +156,11 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 - **[Versus for Copilot](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-copilot)** — IACDM for GitHub Copilot Agent Mode
 
 All extensions share the same `.versus/state.json` format.
+
+## References
+
+- Source methodology: **[Versus](https://github.com/jasminemoreira/Versus)** — canonical repository with the methodology's theory, history, and evolution.
+- Academic paper: **[arxiv:2604.16399](https://arxiv.org/abs/2604.16399)** — formal description of IACDM.
 
 ## License
 

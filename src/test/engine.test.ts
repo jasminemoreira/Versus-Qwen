@@ -432,16 +432,19 @@ test("P5 compact: implementation + exit chain", () => {
   assertContains(5, "get_phase_guidance","must chain to P6 guidance after advancing");
 });
 
-test("P6 compact: spec-driven testing + manual handoff + exit chain", () => {
+test("P6 compact: session renewal + spec-driven testing + UI tooling + manual handoff + exit chain", () => {
   assertContains(6, "FLOW",              "intra-phase flow instruction — prevents stopping between test steps");
   assertContains(6, "Decision history",  "hook injects all decisions — P6 must reference Decision history to merge P0 use cases + P3 scope revisions");
   assertContains(6, "BINDING CONSTRAINTS", "P1 tech stack must be enforced in test code — prevents unapproved test frameworks");
-  assertContains(6, "HUMAN USER",        "manual testing must be restricted to human — full: Step 4");
+  assertContains(6, "HUMAN USER",        "manual testing must be restricted to human — full: Step 5");
   assertContains(6, "WAIT",              "must require waiting for user return");
   assertContains(6, "WHEN TESTING COMPLETE", "trigger point for exit to P7");
   assertContains(6, "NEXT TOOL CALL",    "imperative tool-call language prevents model from writing transition as text");
   assertContains(6, "advance_phase",     "exit action to P7");
   assertContains(6, "get_phase_guidance","must chain to P7 guidance after advancing");
+  assertContains(6, "Step 0",            "session renewal step must be present");
+  assertContains(6, "UI TOOLING",        "UI tooling step must be present");
+  assertContains(6, "Playwright",        "primary recommendation for web SPA must appear");
 });
 
 test("P7 compact: product evaluation + project lessons + meta-iteration safety", () => {
