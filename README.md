@@ -26,6 +26,9 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Multi-session testing protocol** for Phase 6 continuity across sessions
 - **Phase 6 session renewal** to decouple implementer from tester (reduces confirmation bias)
 - **UI testing tooling proposal** — Phase 6 detects UI modules from Phase 1 and offers stack-appropriate browser/automation tools (Playwright, Puppeteer, Cypress, Detox, Maestro, etc.) via interactive selection
+- **Production Capacity Check** in Phase 0 — mandatory asset inventory (authoring/visual/audio/data/integrations) before P0 score can converge, preventing "complete product" targets without production capacity
+- **AP10 — Silent Scope Deferral** — new antipattern blocking `met=true` with prose like "will be done in next cycle"; the inverse of AP9 (silent scope creep)
+- **Empirical `ui_runnable`** — exit criterion now requires explicit user confirmation that a P0 use case was executed end-to-end (literal user confirmation captured in `details`), not just "UI rendered"
 
 ## How It Works
 

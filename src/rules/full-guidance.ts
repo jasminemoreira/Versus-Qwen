@@ -67,7 +67,8 @@ const ANTIPATTERNS = `## ANTI-PATTERNS TO AVOID
 | AP6 | Skipping Phase 0 | Starting with architecture without understanding the problem. Wrong complexity propagates through all phases. Cost: 100×. | S0: Score ≥90 mandatory. |
 | AP7 | Coding without reference | Implementing algorithms without consulting specs/ or literature. The AI will generate plausible code with invented parameters. | S6: Tier 1/2/3 + specs/technical populated. |
 | AP8 | Convergent perfectionism | Infinite cycles seeking "perfect" design. | Stop criterion: <15% change + 0 critical → advance. S2: stopping is the user's decision. |
-| AP9 | Silent scope creep | Adding features during Phases 2-3 without operator approval. | S5: Scope is the user's. Phase 2-3 suggests, never decides. |`;
+| AP9 | Silent scope creep | Adding features during Phases 2-3 without operator approval. | S5: Scope is the user's. Phase 2-3 suggests, never decides. |
+| AP10 | Silent scope deferral | Marking an exit criterion as met=true while textually noting "will be done in next cycle / out of scope for now / pending content". The criterion is NOT met — this defers scope without operator approval, the inverse of AP9. | Either reduce Delivery Target via record_decision and re-baseline, OR return to the appropriate phase and complete before advancing. Textual prose is NOT acceptable substitute for met=false. |`;
 
 const PHASE_0_GUIDANCE = `## Phase 0 — Problem Discovery Loop
 ### Verification: Human-AV (operator validates synthesis and teach-back)
@@ -174,6 +175,30 @@ Define what "done" looks like — the expected output and how to measure success
 | Out of Scope (YAGNI) | What NOT to do, with cost/benefit justification |
 
 Note: Delivery Target was already recorded in Step 0.5 — use get_decisions(category='scope') to confirm before defining Out of Scope (YAGNI).
+
+---
+
+### Production Capacity Check (MANDATORY when Delivery Target is "Complete product"):
+After defining deliverables and success criteria in Level 5, explicitly verify with the user via AskUserQuestion:
+
+> "Do you (or your team) have the capacity to PRODUCE all assets and content required to fulfill the Success Criteria within the stated timeline?"
+
+Inventory required productions BEFORE asking — present a table to the user (⚠️ MUST DISPLAY):
+
+| Asset Type | Required Quantity | Production Source |
+|---|---|---|
+| Authoring (scenes/screens/copy/scripts) | <count + estimated word/page volume> | <user authors / hired writer / AI-assisted / N/A> |
+| Visual (illustrations/mockups/icons) | <count> | <original / royalty-free / hired / N/A> |
+| Audio (music/SFX/voice) | <count + duration> | <original / royalty-free / hired / N/A> |
+| Data (datasets/training/reference content) | <volume> | <available / to acquire / to generate / N/A> |
+| External integrations | <list third-party APIs/services> | <existing accounts / to setup / N/A> |
+
+If any line lacks a clear production plan, this is a **CAPACITY BLOCKER**. Possible resolutions (offer via AskUserQuestion):
+1. **Confirm capacity** — user provides the production plan now (record_decision)
+2. **Reduce scope** — change Delivery Target from "Complete product" to "MVP first" or split into cycles
+3. **Accept the risk explicitly** — record_decision(category='constraint', content='CAPACITY GAP: <what is missing>, <agreed mitigation>')
+
+**CAUTION:** Tech Feasibility (Level 4) verifies the platform CAN run it. Production Capacity verifies you CAN make it. Both are required. Without this check, the P0 score becomes false confidence — designing what cannot be produced. AP10 (silent scope deferral) almost always traces back to skipping this step.
 
 ---
 
@@ -509,8 +534,11 @@ If creating heuristics for problems with known solutions, debugging complex logi
 After all modules are implemented, before calling advance_phase():
 1. **P1 modules present?** List every module defined in the P1 decomposition — ✅ if present in codebase, ❌ if missing.
 2. **specs/validation covered?** List every requirement in specs/validation — ✅ if covered by at least one module, ❌ if not.
-3. **UI runnable?** If the project has a UI module (listed in P1 decomposition): is the UI implemented and accessible for manual testing (dev server starts, main flows navigable)? → mark_exit_criteria(phase=5, criterion='ui_runnable', met=true/false, details=...). If backend-only: mark_exit_criteria(phase=5, criterion='ui_runnable', met=true, details='N/A — backend-only').
-Scope inventory = **presence/absence check only** (not quality — that is Phase 6's job).
+3. **UI runnable — empirical proof, not prose?** If the project has a UI module (listed in P1 decomposition): you MUST ask the user via AskUserQuestion to execute AT LEAST ONE Phase 0 use case end-to-end and report whether it worked. Only mark met=true if user explicitly confirms. The \`details\` field MUST contain the user's literal confirmation, e.g. "User executed UC-1 (login→dashboard) and confirmed it works". For backend-only: mark_exit_criteria(phase=5, criterion='ui_runnable', met=true, details='N/A — backend-only, no UI module in P1').
+
+**CAUTION AP10 (Silent scope deferral):** Marking ui_runnable as met=true with prose like "UI rendered but content missing" or "engine works but assets pending" is forbidden. If the use case from P0 cannot be executed end-to-end by a human, the criterion is met=false. Either: (a) complete the missing pieces before advancing, OR (b) renegotiate the Delivery Target via record_decision(category='scope').
+
+Scope inventory = **presence/absence check** (not quality — that is Phase 6's job) AND **empirical use-case validation** (not just file existence).
 If any ❌: implement the missing module/requirement before advancing.
 **CAUTION AP1:** do NOT mark ✅ without checking — the goal is to find ❌s, not to confirm ✅s.
 

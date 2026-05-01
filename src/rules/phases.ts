@@ -118,7 +118,7 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   { phase: 5, criterion: "all_modules", description: "All modules implemented", required: true },
   { phase: 5, criterion: "specs_consulted", description: "specs/ consulted before each module", required: true },
   { phase: 5, criterion: "s6_applied", description: "S6 applied (Tier 1/2/3 per module)", required: true },
-  { phase: 5, criterion: "ui_runnable", description: "UI implemented and accessible for manual testing, or N/A documented for backend-only projects", required: true },
+  { phase: 5, criterion: "ui_runnable", description: "Human user has executed AT LEAST ONE Phase 0 use case end-to-end and confirmed it works (not just 'UI rendered'). Without explicit user confirmation captured in details, criterion stays pending. For backend-only projects: document N/A with justification.", required: true },
 
   // Phase 6
   { phase: 6, criterion: "tests_passing", description: "100% tests passing", required: true },
