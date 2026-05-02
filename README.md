@@ -31,6 +31,7 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Empirical `ui_runnable`** — exit criterion now requires explicit user confirmation that a P0 use case was executed end-to-end (literal user confirmation captured in `details`), not just "UI rendered"
 - **Original Scope Adversarial Review** at end of Phase 5 — mandatory comparison between P0 commitments and actual delivery, with 3 explicit user options (Continue / Renegotiate / Accept gaps as debt). Eliminates silent scope deferral by forcing every gap into a user decision recorded as `record_decision`.
 - **Ready-to-advance enforcement** — when all exit criteria of a phase are met but the phase has not advanced, three layers signal the LLM to call `advance_phase()` immediately: `_nextAction` field in `mark_exit_criterion` and `get_phase_state` responses + warning banner in the context-injection hook. Eliminates the "phase done but stopped on summary" failure pattern.
+- **Complete guidance injection** — every UserPromptSubmit injects the full methodology (cross-cutting rules + antipatterns + all 8 phase blocks). Replaces the previous compact-guidance summary, which could omit critical rules under context pressure. Token cost is bounded by prompt caching (static content cached after first injection per session). Single source of truth: no drift possible between compact and full.
 
 ## How It Works
 

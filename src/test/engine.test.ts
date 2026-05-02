@@ -6,7 +6,7 @@ import * as path from "path";
 import * as os from "os";
 import { StateEngine } from "../state/engine";
 import { ScoreBreakdown } from "../state/types";
-import { getCompactGuidance } from "../rules/compact-guidance";
+import { getCompleteGuidance } from "../rules/full-guidance";
 
 function createTempWorkspace(): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "versus-test-"));
@@ -345,116 +345,69 @@ test("updateProjectSpec recovers from character-split arrays", () => {
   assert.ok(!spec.stack.includes("T"), "stack must NOT contain individual characters");
 });
 
-// --- Compact Guidance Content (sync guard) ---
-// These tests enforce that compact guidance contains key terms from the full guidance.
-// If a full guidance change breaks a compact line, these tests will catch it.
-// RULE: whenever you update full guidance, run `npm test` to detect sync drift.
+// --- Complete Guidance Presence Tests ---
+// Inject-context now injects the COMPLETE methodology guidance every turn
+// (instead of a curated compact summary). These tests guard against accidental
+// removal of critical methodology terms from full-guidance.ts.
 
-console.log("\n=== Compact Guidance Sync Tests ===\n");
+console.log("\n=== Complete Guidance Presence Tests ===\n");
 
-function compact(phase: number): string {
-  return getCompactGuidance(phase).join(" ");
-}
+const completeGuidanceText = getCompleteGuidance();
 
-function assertContains(phase: number, term: string, reason: string) {
+function assertPresent(term: string, reason: string) {
   assert.ok(
-    compact(phase).includes(term),
-    `P${phase} compact missing "${term}" — ${reason}`
+    completeGuidanceText.includes(term),
+    `Complete guidance missing "${term}" — ${reason}`
   );
 }
 
-test("P0 compact: HSA levels + score chain", () => {
-  assertContains(0, "HSA",               "core exploration method must be named");
-  assertContains(0, "teach-back",        "mandatory display — full: VALIDATION section");
-  assertContains(0, "FLOW",              "intra-phase flow instruction — prevents stopping between recording answers and presenting synthesis");
-  assertContains(0, "AFTER SCORE",       "trigger point for phase transition");
-  assertContains(0, "advance_phase",     "exit action for score ≥90");
-  assertContains(0, "get_phase_guidance","must chain to P1 guidance after advancing");
-  assertContains(0, "start_iteration",   "retry action for score <90");
+test("global rules + antipatterns present", () => {
+  assertPresent("R2:",  "R2 (AskUserQuestion) is a core rule");
+  assertPresent("R5:",  "R5 (Mandatory Display) is a core rule");
+  assertPresent("AP1",  "AP1 (Validation theater) defines generation mode");
+  assertPresent("AP10", "AP10 (Silent scope deferral) is the latest antipattern");
 });
 
-test("P1 compact: architecture questions + exit chain", () => {
-  assertContains(1, "Decomposition",       "first of the 4 mandatory architecture questions");
-  assertContains(1, "FLOW",               "intra-phase flow instruction — prevents stopping after recording architecture answers");
-  assertContains(1, "WHEN DONE",          "trigger point for exit to P2");
-  assertContains(1, "update_project_spec","must persist structured spec before advancing — primary enforcement mechanism across sessions");
-  assertContains(1, "advance_phase",      "exit action after architecture confirmed");
-  assertContains(1, "get_phase_guidance", "must chain to P2 guidance after advancing");
+test("P0 critical terms present", () => {
+  assertPresent("HIERARCHICAL SEMANTIC ANALYSIS", "P0 core method");
+  assertPresent("Delivery Target", "P0 mandatory first question");
+  assertPresent("Production Capacity Check", "P0 capacity check (added v0.6.1)");
+  assertPresent("Tier 1", "P0 feasibility tier");
 });
 
-test("P2 compact: all 7 universal lens names + exit chain", () => {
-  // Full guidance: Universal Lenses table (PHASE_2_GUIDANCE)
+test("P1 critical terms present", () => {
+  assertPresent("UI module", "UI must be explicit module in P1 decomposition");
+  assertPresent("update_project_spec", "P1 must persist structured spec");
+});
+
+test("P2 critical terms present", () => {
   for (const lens of ["Assumptions", "Architectural", "Implementability", "Scientific", "Security", "Performance", "Regulatory"]) {
-    assertContains(2, lens, `universal lens "${lens}" must be named explicitly — prevents AI invention`);
+    assertPresent(lens, `universal lens "${lens}" must be named`);
   }
-  assertContains(2, "MODULE BOUNDARY",   "prevents AI from inventing new module boundaries outside P1 decomposition");
-  assertContains(2, "negative scope",    "P1 negative scope items must be flagged OOB in P2 — not silently promoted");
-  assertContains(2, "FLOW",              "intra-phase flow instruction — prevents stopping after recording lenses");
-  assertContains(2, "AFTER GATE",        "trigger point for exit to P3");
-  assertContains(2, "NEXT TOOL CALL",    "imperative tool-call language prevents model from writing transition as text");
-  assertContains(2, "advance_phase",     "exit action after gate");
-  assertContains(2, "get_phase_guidance","must chain to P3 guidance after advancing");
 });
 
-test("P3 compact: simplification + exit chain (both paths)", () => {
-  assertContains(3, "ANTI-SCOPE-CREEP", "must display checklist to prevent scope drift, including P1 negative scope guard");
-  assertContains(3, "FLOW",              "intra-phase flow instruction — prevents stopping before computing %");
-  assertContains(3, "AFTER CONFIRMATION","trigger point for post-cycle decision");
-  assertContains(3, "NEXT TOOL CALL",    "imperative tool-call language prevents model from writing transition as text");
-  assertContains(3, "advance_phase",     "exit action to P4");
-  assertContains(3, "get_phase_guidance","must chain to guidance after advancing");
-  assertContains(3, "start_iteration",   "loop action for more iterations");
+test("P5 critical terms present", () => {
+  assertPresent("adversarial micro-check", "S7 per-module divergence check");
+  assertPresent("Original Scope Adversarial Review", "AP10 prevention via explicit scope review");
+  assertPresent("Renegotiate scope", "user option to renegotiate scope");
+  assertPresent("ACCEPTED GAPS", "user option to accept gaps as documented debt");
+  assertPresent("ui_runnable", "P5 exit criterion");
 });
 
-test("P4 compact: convergence gate + LLM switch + exit chain", () => {
-  assertContains(4, "FLOW",              "intra-phase flow instruction — prevents stopping between get_exit_criteria and check_all_safeguards");
-  assertContains(4, "LLM Switch",        "mandatory notification — full: LLM Switch Point section");
-  assertContains(4, "WHEN ALL",          "trigger point for gate passage");
-  assertContains(4, "advance_phase",     "exit action to P5");
-  assertContains(4, "get_phase_guidance","must chain to P5 guidance after advancing");
+test("P6 critical terms present", () => {
+  assertPresent("Session Renewal", "P6 Step 0 session renewal");
+  assertPresent("Playwright", "primary UI tool recommendation for web SPA");
+  assertPresent("Detox", "primary UI tool recommendation for React Native");
 });
 
-test("P5 compact: implementation + scope review + exit chain", () => {
-  assertContains(5, "FLOW",              "intra-phase flow instruction — prevents stopping between modules");
-  assertContains(5, "specs/",            "R4: must consult specs before each module");
-  assertContains(5, "Tier 1",            "S6 tiers must be named");
-  assertContains(5, "BINDING",           "P1 tech/pattern decisions are hard constraints — prevents framework drift");
-  assertContains(5, "Decision history",  "hook injects full history — compact guidance must reference it for constraint enforcement");
-  assertContains(5, "NEXT TOOL CALL",    "imperative tool-call language prevents model from stopping between modules");
-  assertContains(5, "text between modules", "writing text between modules ends the turn — must be explicitly forbidden");
-  assertContains(5, "ADVERSARIAL MICRO-CHECK", "per-module divergence check — adversarial framing prevents AP1 rubber-stamp");
-  assertContains(5, "DIVERGE",           "micro-check must seek divergence, not validate — prevents self-assessment bias");
-  assertContains(5, "SCOPE INVENTORY",   "final presence/absence check before advance — catches unimplemented modules");
-  assertContains(5, "WHEN ALL MODULES DONE", "trigger point for scope inventory before exit to P6");
-  assertContains(5, "ui_runnable",       "P5 exit criterion: UI must be implemented or N/A documented before advancing");
-  assertContains(5, "UI runnable",       "scope inventory item 3: explicit UI check — prevents backend-only delivery in UI projects");
-  assertContains(5, "advance_phase",     "exit action to P6");
-  assertContains(5, "get_phase_guidance","must chain to P6 guidance after advancing");
-  assertContains(5, "ORIGINAL SCOPE",    "Original Scope Adversarial Review must precede Scope Inventory — AP10 prevention");
-  assertContains(5, "Renegotiate",       "user option to renegotiate scope must be present");
-  assertContains(5, "ACCEPTED GAPS",     "user option to accept gaps as documented debt must be present");
+test("P7 critical terms present", () => {
+  assertPresent("start_new_cycle", "meta-iteration tool");
+  assertPresent("init_project", "prohibition against init_project for v2 must be present");
 });
 
-test("P6 compact: session renewal + spec-driven testing + UI tooling + manual handoff + exit chain", () => {
-  assertContains(6, "FLOW",              "intra-phase flow instruction — prevents stopping between test steps");
-  assertContains(6, "Decision history",  "hook injects all decisions — P6 must reference Decision history to merge P0 use cases + P3 scope revisions");
-  assertContains(6, "BINDING CONSTRAINTS", "P1 tech stack must be enforced in test code — prevents unapproved test frameworks");
-  assertContains(6, "HUMAN USER",        "manual testing must be restricted to human — full: Step 5");
-  assertContains(6, "WAIT",              "must require waiting for user return");
-  assertContains(6, "WHEN TESTING COMPLETE", "trigger point for exit to P7");
-  assertContains(6, "NEXT TOOL CALL",    "imperative tool-call language prevents model from writing transition as text");
-  assertContains(6, "advance_phase",     "exit action to P7");
-  assertContains(6, "get_phase_guidance","must chain to P7 guidance after advancing");
-  assertContains(6, "Step 0",            "session renewal step must be present");
-  assertContains(6, "UI TOOLING",        "UI tooling step must be present");
-  assertContains(6, "Playwright",        "primary recommendation for web SPA must appear");
-});
-
-test("P7 compact: product evaluation + project lessons + meta-iteration safety", () => {
-  assertContains(7, "start_new_cycle",   "meta-iteration tool must be named");
-  assertContains(7, "init_project",      "prohibition against init_project for v2 must be present");
-  assertContains(7, "project lessons",   "project-focused lessons must be mentioned");
-  assertContains(7, "specs/",            "specs/ update step must be present");
+test("LLM switch + retomar Versus terms present", () => {
+  assertPresent("LLM Switch Point", "P4→P5 model switch notification");
+  assertPresent("retomar Versus", "anchor phrase for context recovery");
 });
 
 console.log("\n=== All tests completed ===\n");

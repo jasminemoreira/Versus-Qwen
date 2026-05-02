@@ -4,7 +4,7 @@
 // Injects methodology state before EVERY user message.
 
 import { StateEngine } from "../state/engine";
-import { getCompactGuidance } from "../rules/compact-guidance";
+import { getCompleteGuidance } from "../rules/full-guidance";
 import { getPhaseDefinition } from "../rules/phases";
 
 function main() {
@@ -74,11 +74,10 @@ function main() {
     lines.push("RESTRICTION: Phases 0-4 — DO NOT implement code. Use the MCP tools to manage the methodology.");
   }
 
-  // Compact behavioral instructions per phase
-  const compactGuidance = getCompactGuidance(phase);
-  for (const line of compactGuidance) {
-    lines.push(line);
-  }
+  // Complete methodology guidance (all phases + cross-cutting rules + antipatterns).
+  // Replaced compact-guidance to eliminate precision loss from summarization.
+  // Token cost is mitigated by prompt caching since this content is static.
+  lines.push(getCompleteGuidance());
 
   // Loop counter warning
   const loop = engine.getLoopCounter();

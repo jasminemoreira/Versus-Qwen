@@ -798,3 +798,42 @@ export function getFullGuidance(phase: number): string {
 
   return parts.join("\n");
 }
+
+/**
+ * Returns the COMPLETE methodology context (all phases + cross-cutting).
+ * Used by the inject-context hook to keep the LLM fully informed at every turn.
+ *
+ * Rationale: the previous compact-guidance summarization caused precision loss
+ * (rules from full-guidance got dropped under context pressure). Injecting the
+ * complete guidance every turn — combined with prompt caching — guarantees the
+ * LLM operates with the full methodology in context. Cost is bounded: ~10k
+ * tokens per turn, mostly cache-hit after first injection of the phase.
+ */
+export function getCompleteGuidance(): string {
+  const parts: string[] = [];
+
+  parts.push("## ACTIVE GLOBAL RULES");
+  parts.push(GLOBAL_RULES.R1);
+  parts.push(GLOBAL_RULES.R2);
+  parts.push(GLOBAL_RULES.R5);
+  parts.push("R4 (per-phase timing):");
+  for (const [p, r4] of Object.entries(GLOBAL_RULES.R4_TIMING)) {
+    parts.push(`  Phase ${p}: ${r4}`);
+  }
+
+  parts.push("");
+  parts.push(ACTIVATION_TRIGGERS);
+
+  parts.push("");
+  parts.push(ANTIPATTERNS);
+
+  for (let p = 0; p <= 7; p++) {
+    const phaseGuidance = FULL_GUIDANCE[p];
+    if (phaseGuidance) {
+      parts.push("");
+      parts.push(phaseGuidance);
+    }
+  }
+
+  return parts.join("\n");
+}
