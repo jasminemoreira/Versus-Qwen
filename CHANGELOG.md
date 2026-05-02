@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.2] - 2026-05-02
+
+### Changed
+- **`ui_runnable` description shortened to "Smoke test: user runs P0 end-to-end"** for sidebar readability. The full rules (AP10, literal user confirmation in details, primary P0 use case) remain in `full-guidance.ts` and `compact-guidance.ts` where the LLM consumes them — sidebar is for human glance.
+
 ## [0.2.1] - 2026-05-01
 
 ### Added

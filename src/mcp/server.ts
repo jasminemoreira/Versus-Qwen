@@ -36,7 +36,7 @@ async function main() {
   const server = new Server(
     {
       name: "versus-qwen",
-      version: "0.2.1",
+      version: "0.2.2",
     },
     {
       capabilities: {
