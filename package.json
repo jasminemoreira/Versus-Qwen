@@ -2,7 +2,7 @@
   "name": "versus-qwen",
   "displayName": "Versus for Qwen",
   "description": "IACDM orchestrator for Qwen Code — 8-phase structured development with adversarial critique, verification gates, and safeguards that close the AI verification gap",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "JasmineMoreira",
   "author": "Jasmine Moreira",
   "license": "MIT",

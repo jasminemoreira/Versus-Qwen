@@ -479,7 +479,12 @@ Validate complete convergence — this gate decides if the design is ready for c
 
 ### LLM Switch Point (⚠️ MUST DISPLAY this notification to the user):
 Phase 4 is the natural boundary for switching LLMs to reduce cost. Phases 0-4 (design) require high reasoning capability — use the most capable model available. Phases 5-7 (implementation, tests, review) require code generation and execution — a cheaper/faster model is sufficient since the architecture is already validated and documented in specs/.
-Inform the user: "The architecture is fully validated. From Phase 5 onward, you can switch to a faster/cheaper model (e.g., Sonnet instead of Opus) — the design decisions are persisted in state.json and specs/, so no context is lost."
+Inform the user: "The architecture is fully validated. From Phase 5 onward, you can switch to a faster/cheaper model (e.g., a smaller Qwen variant) — the design decisions are persisted in state.json and specs/, so no context is lost.
+
+**HOW TO SWITCH CLEANLY:** Do NOT change the model in the current chat. Mid-conversation switching makes the new (smaller-context) model try to compact the previous session, which destroys the structured context that Versus preserves via MCP. Instead:
+1. Close the current chat and open a NEW chat with the target model
+2. Type \`retomar Versus\` — the SessionStart hook recovers state via MCP cleanly (phase, decisions, specs/), no compaction needed
+3. The new model starts fresh but with full methodology state"
 
 ### Next Step (MANDATORY when all items are ✅):
 1. Display the LLM Switch Point notification to the user (mandatory before advancing — see above).
@@ -594,7 +599,7 @@ const PHASE_6_GUIDANCE = `## Phase 6 — Tests
 Testing your own code with the same context that wrote it activates confirmation bias ("of course it works, I just wrote it"). Recommend the user start a fresh chat session before Phase 6 to decouple implementer from tester (S4 spirit, automated form).
 
 Use AskUserQuestion with the following options (default: "New session"):
-- **"New session"** — exit current chat, open a new one, type \`retomar Versus\` to recover state, then resume Phase 6
+- **"New session"** — exit current chat, open a new one (also the right moment to switch models if desired, e.g., test execution does not need the most capable Qwen variant), type \`retomar Versus\` to recover state, then resume Phase 6
 - **"Continue here"** — proceed in current session (faster but less rigorous; may miss issues the implementer didn't anticipate)
 
 If user picks "New session": call record_decision(phase=6, category='testing', content='SESSION RENEWAL: user will return in new chat — recover with retomar Versus') and STOP your response. The user will resume.

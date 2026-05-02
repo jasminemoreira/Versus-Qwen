@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4] - 2026-05-02
+
+### Changed
+- **Model switch mechanic added to LLM Switch Point (P4→P5)**: previously the notification told the user "you can switch to a faster/cheaper model" without explaining how. Switching models mid-conversation in the same chat causes the new (smaller-context) model to attempt compaction of the previous session, which destroys the structured context Versus preserves via MCP. The notification now instructs the user to: (1) close the current chat, (2) open a new chat with the target model, (3) type `retomar Versus` so the SessionStart hook recovers state cleanly via MCP. The new model starts with fresh context but full methodology state.
+- **P6 Step 0 (Session Renewal) clarified for model switching**: the "New session" option now mentions explicitly that this is also the right moment to switch models if desired (e.g., test execution does not need the most capable Qwen variant), reinforcing the same close+reopen+retomar mechanic.
+
 ## [0.2.3] - 2026-05-02
 
 ### Added
