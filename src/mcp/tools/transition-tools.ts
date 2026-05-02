@@ -96,6 +96,7 @@ export function handleStartNewCycle(engine: StateEngine): string {
       cycle: result.value.cycle,
       currentPhase: 0,
       hint: "Phase 0 of the new cycle starts from existing specs/ — knowledge is NOT lost. Use get_decisions() to review previous cycle context. Negative scope from the previous cycle can become new scope (with operator approval).",
+      _modelSwitchAction: "⚠️ MODEL SWITCH RECOMMENDED — A new cycle starts at Phase 0 (design). If you switched to a smaller Qwen variant at the original LLM Switch Point in cycle " + (result.value.cycle - 1) + " Phase 4→5, you are likely STILL on that model. Phase 0 design benefits from the MOST CAPABLE Qwen variant. DISPLAY this notification to the user and recommend the same close+reopen+retomar Versus mechanic used at the original LLM Switch Point: (1) close this chat, (2) open a new chat with the design-grade model, (3) type `retomar Versus`. The new model will recover state cleanly via SessionStart hook and resume Phase 0 of the new cycle.",
     });
   } else {
     return JSON.stringify({ success: false, error: result.error });

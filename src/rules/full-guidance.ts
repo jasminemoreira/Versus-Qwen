@@ -745,6 +745,8 @@ If the user chooses to start a new cycle:
 6. Phase 7 lessons feed into the new cycle's process
 7. Call get_phase_guidance() to load Phase 0 instructions for the new cycle
 
+**⚠️ REVERSE LLM SWITCH (MUST DISPLAY when start_new_cycle returns _modelSwitchAction):** If the user switched to a smaller Qwen variant at the P4→P5 LLM Switch Point in the previous cycle, they are likely still on that model. The new cycle starts at Phase 0 (design), which benefits from the MOST CAPABLE Qwen variant. DISPLAY the model switch recommendation that appears in start_new_cycle's response (\`_modelSwitchAction\` field) and recommend the same close+reopen+retomar Versus mechanic used at the original LLM Switch Point.
+
 IMPORTANT: Do NOT use init_project() for meta-iteration — that wipes all previous context. Use start_new_cycle() which preserves the knowledge base.`;
 
 const FULL_GUIDANCE: Record<number, string> = {

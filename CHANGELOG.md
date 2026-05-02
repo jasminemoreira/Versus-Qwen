@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2026-05-02
+
+### Added
+- **Reverse LLM Switch on `start_new_cycle()`.** Closes the asymmetry: the methodology has a P4→P5 LLM Switch Point but had no equivalent for the Pn→P0_v2 transition (when starting a new cycle). Users typically switched to a smaller Qwen variant in cycle 1 and never returned to the design-grade model — cycle 2 then started Phase 0 (design) on the wrong model. Now `start_new_cycle()` returns `_modelSwitchAction` with the same close+reopen+retomar Versus mechanic, and P7 Meta-iteration guidance instructs the LLM to display this notification when starting a new cycle.
+
 ## [0.3.0] - 2026-05-02
 
 ### Changed
