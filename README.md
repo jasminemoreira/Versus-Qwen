@@ -29,6 +29,8 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Production Capacity Check** in Phase 0 — mandatory asset inventory (authoring/visual/audio/data/integrations) before P0 score can converge, preventing "complete product" targets without production capacity
 - **AP10 — Silent Scope Deferral** — new antipattern blocking `met=true` with prose like "will be done in next cycle"; the inverse of AP9 (silent scope creep)
 - **Empirical `ui_runnable`** — exit criterion now requires explicit user confirmation that a P0 use case was executed end-to-end (literal user confirmation captured in `details`), not just "UI rendered"
+- **Original Scope Adversarial Review** at end of Phase 5 — mandatory comparison between P0 commitments and actual delivery, with 3 explicit user options (Continue / Renegotiate / Accept gaps as debt). Eliminates silent scope deferral by forcing every gap into a user decision recorded as `record_decision`.
+- **Ready-to-advance enforcement** — when all exit criteria of a phase are met but the phase has not advanced, three layers signal the LLM to call `advance_phase()` immediately: `_nextAction` field in `mark_exit_criterion` and `get_phase_state` responses + warning banner in the context-injection hook. Eliminates the "phase done but stopped on summary" failure pattern.
 
 ## How It Works
 

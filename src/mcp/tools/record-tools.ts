@@ -143,6 +143,14 @@ export function handleMarkExitCriterion(
       totalCriteria: criteria.length,
     };
 
+    // When all criteria for any phase < 7 become met, force next action: advance_phase
+    if (allMet && args.phase < 7 && args.met) {
+      const state = engine.getPhaseState();
+      if (state && state.currentPhase === args.phase) {
+        result._nextAction = `⚠️ ALL Phase ${args.phase} exit criteria are now met. Your VERY NEXT tool call MUST be advance_phase() — no summary text, no closing prose. After advance_phase(), call get_phase_guidance() to load Phase ${args.phase + 1} instructions and continue work in the same turn.`;
+      }
+    }
+
     // When all Phase 7 criteria are met, hint to offer new cycle
     if (args.phase === 7 && allMet) {
       result._phase7Action = "ALL Phase 7 exit criteria are now met. You MUST offer the user a new development cycle via AskUserQuestion: Option 1 'Start next cycle' (calls start_new_cycle()) / Option 2 'Project complete'. Do NOT skip this step.";

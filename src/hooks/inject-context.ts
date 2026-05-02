@@ -24,6 +24,15 @@ function main() {
     `[Versus] Phase ${phase} — ${phaseName} | Iteration ${state.currentIteration}`,
   ];
 
+  // Detect "ready to advance" — all exit criteria met but phase not advanced
+  if (phase < 7) {
+    const phaseCriteria = engine.getExitCriteriaWithDefs(phase);
+    const allMet = phaseCriteria.length > 0 && phaseCriteria.every((c) => c.met);
+    if (allMet) {
+      lines.push(`⚠️ READY TO ADVANCE — Phase ${phase} exit criteria are ALL met. Your VERY NEXT tool call MUST be advance_phase() followed by get_phase_guidance(). Do NOT write summary text. Do NOT wait for user input. Continue work into Phase ${phase + 1} in the same turn.`);
+    }
+  }
+
   if (state.phase0Score !== null) {
     lines.push(`Score Phase 0: ${state.phase0Score}/100`);
   }

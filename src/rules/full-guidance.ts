@@ -530,8 +530,46 @@ Do NOT write text between modules — the next tool call must be the first tool 
 ### S6 alarm signal (immediate STOP):
 If creating heuristics for problems with known solutions, debugging complex logic written from scratch, doing trial-and-error on something deterministic, or spending >2 iterations on the same module → STOP, communicate, seek reference implementation (Tier 2).
 
+### Original Scope Adversarial Review (MANDATORY before Scope Inventory — ⚠️ MUST DISPLAY):
+Before running the Scope Inventory, the LLM MUST perform an adversarial comparison between what was promised in P0 and what is actually delivered. This is the safeguard against AP10 (silent scope deferral).
+
+**Step 1 — Recover original commitments:**
+- Call get_decisions(phase=0) to retrieve Delivery Target, Success Criteria, Out of Scope items
+- Read the P0 Production Capacity Check inventory (asset table from Phase 0)
+- Read specs/validation for acceptance criteria
+
+**Step 2 — Build the Promise vs Delivery table (⚠️ MUST DISPLAY):**
+
+| Item promised in P0 | Delivered? | Status |
+|---|---|---|
+| <literal item from P0 commitments> | <count delivered / count promised> | ✅ / 🟡 (partial) / ❌ |
+
+Cover ALL items: scenes/screens, classes/entities, mechanics/features, assets (visual/audio/data), success criteria thresholds, accessibility/performance targets, integrations.
+
+**Step 3 — Adversarial framing (CRITICAL):**
+Operate in GENERATION mode (AP1): "Find every gap. List every promise that is not fully delivered." Do NOT be charitable to your own work. A promise without delivery = ❌, no exceptions for "non-blocking" or "for next session" — that is exactly AP10. Partial delivery (e.g., 4/9 scenes) = 🟡, not ✅.
+
+**Step 4 — User decision via AskUserQuestion (MANDATORY when any 🟡 or ❌ exists):**
+
+Present the table and ask the user how to proceed:
+
+- **Option 1 — "Continue Phase 5"**: complete the missing items before advancing. Recommended when gaps are essential to the product.
+- **Option 2 — "Renegotiate scope"**: some ❌ items will not be delivered in this cycle. Will generate \`record_decision(category='scope', content='SCOPE REVISION at P5 exit: <items removed> — <reason>')\` to re-baseline the Delivery Target before advancing.
+- **Option 3 — "Advance accepting gaps as known debt"**: ❌ items remain documented as known technical debt. Will generate \`record_decision(category='constraint', content='ACCEPTED GAPS at P5 exit: <list> — to be addressed in cycle v2 via start_new_cycle')\` documenting the conscious deferral.
+
+**No default. No silent path.** The user MUST choose.
+
+**Branching:**
+- Option 1 → return to module implementation, do NOT proceed to Scope Inventory
+- Option 2 → call record_decision(scope), THEN proceed to Scope Inventory
+- Option 3 → call record_decision(constraint), THEN proceed to Scope Inventory
+
+**CAUTION AP10:** Without this review, gaps get silently deferred via prose in mark_exit_criterion details. With this review, every deferral is explicit, recorded, and consented by the user. AP10 only fires against silent deferral; documented deferral via record_decision is legitimate scope management.
+
+---
+
 ### Scope Inventory (MANDATORY before advance_phase — ⚠️ MUST DISPLAY):
-After all modules are implemented, before calling advance_phase():
+After all modules are implemented AND Original Scope Review was completed (with user decision recorded), before calling advance_phase():
 1. **P1 modules present?** List every module defined in the P1 decomposition — ✅ if present in codebase, ❌ if missing.
 2. **specs/validation covered?** List every requirement in specs/validation — ✅ if covered by at least one module, ❌ if not.
 3. **UI runnable — empirical proof, not prose?** If the project has a UI module (listed in P1 decomposition): you MUST ask the user via AskUserQuestion to execute AT LEAST ONE Phase 0 use case end-to-end and report whether it worked. Only mark met=true if user explicitly confirms. The \`details\` field MUST contain the user's literal confirmation, e.g. "User executed UC-1 (login→dashboard) and confirmed it works". For backend-only: mark_exit_criteria(phase=5, criterion='ui_runnable', met=true, details='N/A — backend-only, no UI module in P1').

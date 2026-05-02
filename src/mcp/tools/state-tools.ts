@@ -77,6 +77,16 @@ export function handleGetPhaseState(engine: StateEngine): string {
     }
   }
 
+  // Detect "ready to advance" state for any phase < 7 — all criteria met but phase not advanced
+  let readyToAdvanceHint: string | undefined;
+  if (state.currentPhase < 7) {
+    const phaseCriteria = engine.getExitCriteriaWithDefs(state.currentPhase);
+    const allMet = phaseCriteria.length > 0 && phaseCriteria.every((c) => c.met);
+    if (allMet) {
+      readyToAdvanceHint = `⚠️ READY TO ADVANCE — Phase ${state.currentPhase} exit criteria are ALL met but currentPhase is still ${state.currentPhase}. Your VERY NEXT tool call MUST be advance_phase() followed by get_phase_guidance(). Do NOT write summary text. Do NOT wait for user input. Continue work into Phase ${state.currentPhase + 1} in the same turn.`;
+    }
+  }
+
   const result: Record<string, any> = {
     projectName: state.projectName,
     projectDescription: state.projectDescription,
@@ -92,6 +102,9 @@ export function handleGetPhaseState(engine: StateEngine): string {
 
   if (phase7Hint) {
     result._phase7Action = phase7Hint;
+  }
+  if (readyToAdvanceHint) {
+    result._nextAction = readyToAdvanceHint;
   }
 
   return JSON.stringify(result);

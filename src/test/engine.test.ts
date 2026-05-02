@@ -414,7 +414,7 @@ test("P4 compact: convergence gate + LLM switch + exit chain", () => {
   assertContains(4, "get_phase_guidance","must chain to P5 guidance after advancing");
 });
 
-test("P5 compact: implementation + exit chain", () => {
+test("P5 compact: implementation + scope review + exit chain", () => {
   assertContains(5, "FLOW",              "intra-phase flow instruction — prevents stopping between modules");
   assertContains(5, "specs/",            "R4: must consult specs before each module");
   assertContains(5, "Tier 1",            "S6 tiers must be named");
@@ -430,6 +430,9 @@ test("P5 compact: implementation + exit chain", () => {
   assertContains(5, "UI runnable",       "scope inventory item 3: explicit UI check — prevents backend-only delivery in UI projects");
   assertContains(5, "advance_phase",     "exit action to P6");
   assertContains(5, "get_phase_guidance","must chain to P6 guidance after advancing");
+  assertContains(5, "ORIGINAL SCOPE",    "Original Scope Adversarial Review must precede Scope Inventory — AP10 prevention");
+  assertContains(5, "Renegotiate",       "user option to renegotiate scope must be present");
+  assertContains(5, "ACCEPTED GAPS",     "user option to accept gaps as documented debt must be present");
 });
 
 test("P6 compact: session renewal + spec-driven testing + UI tooling + manual handoff + exit chain", () => {
