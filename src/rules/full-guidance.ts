@@ -73,6 +73,19 @@ const ANTIPATTERNS = `## ANTI-PATTERNS TO AVOID
 const PHASE_0_GUIDANCE = `## Phase 0 — Problem Discovery Loop
 ### Verification: Human-AV (operator validates synthesis and teach-back)
 
+### MODE DETECTION (FIRST CHECK — before any other action):
+Call get_decisions(phase=0) and look for AS-IS USE CASES, AS-IS DOMAIN VOCABULARY, or LOCKED CONSTRAINTS decisions. If present, init_project was called with bootstrap_data — you are in **DELTA MODE** (brownfield extension, not greenfield).
+
+**DELTA MODE adjustments:**
+- Skip HSA Level 1 (Domain) — already captured during bootstrap. Read specs/domain/AS-IS-vocabulary.md and specs/references/AS-IS-modules.md instead.
+- Levels 2-5 focus on the NEW change/feature only, not the existing system. Use cases, processes, and product apply to the delta.
+- Production Capacity Check asks about capacity to MODIFY the existing system (testing impact, migration, backward compatibility), not about producing a complete product from scratch.
+- The Delivery Target question applies to the delta: "Complete delta" / "MVP delta" / "Prototype delta".
+- Score criteria still apply (≥90 to advance), but evaluated against the delta scope, not the entire system.
+- Out of Scope (Level 5) MUST include "everything in the existing system not touched by this delta — see AS-IS decisions for boundaries".
+
+If get_decisions returns NO AS-IS entries, you are in **GREENFIELD MODE**. Proceed with the standard P0 flow below.
+
 ### Step 0: Read ALL content from specs/ before asking questions. Build on what already exists.
 
 ### Step 0.5 — Delivery Target (MANDATORY FIRST QUESTION — before starting HSA):

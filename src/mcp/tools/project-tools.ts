@@ -71,9 +71,19 @@ function deployBundles(workspace: string): boolean {
 export const initProjectTool: Tool = {
   name: "init_project",
   description:
-    "Initializes a new project with the Iterative Convergence methodology. " +
-    "Creates state.json in .versus/ and starts at Phase 0. " +
-    "If a project already exists, returns an error — use get_phase_state to check.",
+    "Initializes a project with the Iterative Convergence methodology. Supports two modes:\n\n" +
+    "**GREENFIELD** (empty workspace, no existing code): call directly with name + description. Phase 0 starts with full HSA exploration of the new domain.\n\n" +
+    "**BROWNFIELD BOOTSTRAP** (workspace has existing code): before calling, you MUST follow this protocol:\n\n" +
+    "1. Detect existing code: check for README.md, root config files (package.json, requirements.txt, Cargo.toml, pom.xml, tsconfig.json, etc.), and a non-empty src/ or lib/ directory. If detected, you are in brownfield mode.\n\n" +
+    "2. Read SURFACE files only (do NOT read implementations): README.md, root configs, directory listing of src/ or lib/ (names only, not file contents).\n\n" +
+    "3. Infer: tech stack (from configs), module map (from directory structure), apparent use cases (from README/CLI/routes), domain vocabulary (from naming patterns).\n\n" +
+    "4. Present a Bootstrap Proposal in chat (⚠️ MUST DISPLAY) with two sections:\n" +
+    "   - **Inferred from code:** stack, modules, apparent use cases, domain vocabulary\n" +
+    "   - **Required from user:** locked constraints (public APIs / DB schema / contracts that cannot change), high-inertia areas (have tests, change carefully), open areas (free to evolve)\n" +
+    "   - **Granularity recommendation:** the next development cycle should focus on a SMALL unit (one module / one feature / one layer). Versus produces better results with scoped work, not 'evolve everything at once'.\n\n" +
+    "5. Wait for user confirmation in a single chat turn (user reviews everything, corrects what is wrong, declares constraints).\n\n" +
+    "6. After confirmation, call init_project with the bootstrap_data parameter populated. The `description` field should describe the NEXT change/feature the user wants to make, not the existing project.\n\n" +
+    "If a project is already initialized (.versus/state.json exists), call get_phase_state instead — do NOT re-init.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -83,16 +93,37 @@ export const initProjectTool: Tool = {
       },
       description: {
         type: "string",
-        description: "Brief project description.",
+        description: "Brief project description. In brownfield mode, describe the next change/feature, not the existing project.",
+      },
+      bootstrap_data: {
+        type: "object",
+        description: "Brownfield bootstrap data captured before init. Omit for greenfield projects.",
+        properties: {
+          stack: { type: "array", items: { type: "string" }, description: "Tech stack inferred from configs and confirmed by user." },
+          patterns: { type: "array", items: { type: "string" }, description: "Architectural patterns observed in existing code." },
+          constraints: { type: "array", items: { type: "string" }, description: "Locked constraints declared by user." },
+          apparent_use_cases: { type: "array", items: { type: "string" }, description: "Use cases inferred and confirmed." },
+          domain_vocabulary: { type: "array", items: { type: "string" }, description: "Domain terms from naming patterns." },
+          module_map: { type: "array", items: { type: "string" }, description: "Module names with brief responsibility." },
+        },
       },
     },
     required: ["name", "description"],
   },
 };
 
+interface BootstrapData {
+  stack?: string[];
+  patterns?: string[];
+  constraints?: string[];
+  apparent_use_cases?: string[];
+  domain_vocabulary?: string[];
+  module_map?: string[];
+}
+
 export function handleInitProject(
   engine: StateEngine,
-  args: { name: string; description: string }
+  args: { name: string; description: string; bootstrap_data?: BootstrapData }
 ): string {
   const existing = engine.getPhaseState();
   if (existing) {
@@ -103,8 +134,32 @@ export function handleInitProject(
   }
 
   const state = engine.initProject(args.name, args.description);
-
   const workspace = engine.getWorkspace();
+  const isBrownfield = !!args.bootstrap_data;
+
+  if (args.bootstrap_data) {
+    const bd = args.bootstrap_data;
+    if (bd.stack || bd.patterns || bd.constraints) {
+      engine.updateProjectSpec({
+        stack: bd.stack ?? [],
+        patterns: bd.patterns ?? [],
+        constraints: bd.constraints ?? [],
+        outOfScope: [],
+      });
+    }
+    if (bd.apparent_use_cases?.length) {
+      engine.recordDecision(0, "scope", `AS-IS USE CASES (existing system): ${bd.apparent_use_cases.join("; ")}`);
+    }
+    if (bd.domain_vocabulary?.length) {
+      engine.recordDecision(0, "constraint", `AS-IS DOMAIN VOCABULARY: ${bd.domain_vocabulary.join(", ")}`);
+    }
+    if (bd.module_map?.length) {
+      engine.recordDecision(1, "architecture", `AS-IS MODULE MAP (existing decomposition): ${bd.module_map.join("; ")}`);
+    }
+    if (bd.constraints?.length) {
+      engine.recordDecision(0, "constraint", `LOCKED CONSTRAINTS (cannot change without breaking): ${bd.constraints.join("; ")}`);
+    }
+  }
 
   // Copy bundles to .versus/ of the project
   const bundlesDeployed = deployBundles(workspace);
@@ -121,6 +176,29 @@ export function handleInitProject(
   // Write specs/README.md (idempotent — never overwrites user edits)
   ensureSpecsReadme(workspace);
 
+  // Pre-populate specs/ with bootstrap data (brownfield mode)
+  if (args.bootstrap_data) {
+    const bd = args.bootstrap_data;
+    if (bd.stack?.length) {
+      const stackPath = path.join(specsDir, "technical", "AS-IS-stack.md");
+      if (!fs.existsSync(stackPath)) {
+        fs.writeFileSync(stackPath, `# AS-IS Tech Stack\n\nCaptured during bootstrap. Confirmed by user.\n\n${bd.stack.map((s) => `- ${s}`).join("\n")}\n`, "utf-8");
+      }
+    }
+    if (bd.module_map?.length) {
+      const modulePath = path.join(specsDir, "references", "AS-IS-modules.md");
+      if (!fs.existsSync(modulePath)) {
+        fs.writeFileSync(modulePath, `# AS-IS Module Map\n\nExisting decomposition captured during bootstrap.\n\n${bd.module_map.map((m) => `- ${m}`).join("\n")}\n`, "utf-8");
+      }
+    }
+    if (bd.domain_vocabulary?.length) {
+      const vocabPath = path.join(specsDir, "domain", "AS-IS-vocabulary.md");
+      if (!fs.existsSync(vocabPath)) {
+        fs.writeFileSync(vocabPath, `# AS-IS Domain Vocabulary\n\nExtracted from existing code naming patterns.\n\n${bd.domain_vocabulary.map((v) => `- ${v}`).join("\n")}\n`, "utf-8");
+      }
+    }
+  }
+
   // Ensure MCP server registered in .qwen/settings.json
   const mcpCreated = ensureMcpInQwenSettings(workspace);
 
@@ -129,22 +207,29 @@ export function handleInitProject(
 
   const settingsPath = path.join(workspace, ".qwen", "settings.json");
 
+  const baseMessage =
+    `NEW PROJECT '${args.name}' initialized in ${workspace}. ` +
+    `This is an INDEPENDENT and AUTONOMOUS project — DO NOT fetch specs, decisions, or code from other projects. ` +
+    `Structure created: state.json, server.js + 6 hooks (in .versus/), specs/ (9 subfolders), .qwen/settings.json (MCP + hooks). ` +
+    `Everything local — no external dependencies. ` +
+    `MANDATORY ACTION: Read ${settingsPath} with the Read tool to load permissions and hooks. ` +
+    `Then call get_phase_guidance() for Phase 0 instructions. ` +
+    `USER TIP: the user can type "retomar Versus" in chat at any time to recover methodology context — treat that phrase as an instruction to call get_phase_state() + get_phase_guidance() + get_decisions().`;
+
+  const brownfieldMessage = isBrownfield
+    ? ` ⚠️ BROWNFIELD MODE: bootstrap_data was applied. The existing system context is captured in projectSpec (stack, patterns, constraints) and as AS-IS decisions in P0/P1. Phase 0 should now run in DELTA MODE: explore ONLY the new change/feature described, NOT the existing domain. Skip HSA Level 1 (Domain) — it is already captured. Focus Levels 2-5 on the delta. Production Capacity Check should ask about capacity to MODIFY the existing system, not produce from scratch. Granularity guidance: the user was advised to focus the cycle on a small unit (one module / one feature / one layer) — respect that scope.`
+    : "";
+
   return JSON.stringify({
     success: true,
     projectName: state.projectName,
     currentPhase: state.currentPhase,
     workspace,
+    mode: isBrownfield ? "brownfield" : "greenfield",
     bundlesDeployed,
     specsCreated,
     mcpCreated,
     settingsUpdated,
-    message:
-      `NEW PROJECT '${args.name}' initialized in ${workspace}. ` +
-      `This is an INDEPENDENT and AUTONOMOUS project — DO NOT fetch specs, decisions, or code from other projects. ` +
-      `Structure created: state.json, server.js + 6 hooks (in .versus/), specs/ (9 subfolders), .qwen/settings.json (MCP + hooks). ` +
-      `Everything local — no external dependencies. ` +
-      `MANDATORY ACTION: Read ${settingsPath} with the Read tool to load permissions and hooks. ` +
-      `Then call get_phase_guidance() for Phase 0 instructions. ` +
-      `USER TIP: the user can type "retomar Versus" in chat at any time to recover methodology context — treat that phrase as an instruction to call get_phase_state() + get_phase_guidance() + get_decisions().`,
+    message: baseMessage + brownfieldMessage,
   });
 }

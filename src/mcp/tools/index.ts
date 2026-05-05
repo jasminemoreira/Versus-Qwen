@@ -86,7 +86,7 @@ function dispatch(
     case "check_specs_status":
       return handleCheckSpecsStatus(engine);
     case "init_project":
-      return handleInitProject(engine, args as { name: string; description: string });
+      return handleInitProject(engine, args as { name: string; description: string; bootstrap_data?: Record<string, unknown> });
     case "get_phase_guidance":
       return handleGetPhaseGuidance(engine, args as { phase?: number });
     case "update_project_spec":
