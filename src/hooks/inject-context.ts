@@ -3,7 +3,7 @@
 // Layer 1: Context injection — UserPromptSubmit
 // Injects methodology state before EVERY user message.
 
-import { StateEngine } from "../state/engine";
+import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { getCompleteGuidance } from "../rules/full-guidance";
 import { getPhaseDefinition } from "../rules/phases";
 
@@ -79,10 +79,17 @@ function main() {
   // Token cost is mitigated by prompt caching since this content is static.
   lines.push(getCompleteGuidance());
 
-  // Loop counter warning
+  // Loop counter warning (S6 — counts FAILED runs with no diagnosis between them)
   const loop = engine.getLoopCounter();
-  if (loop.count >= 2) {
-    lines.push(`⚠ Loop detector: pattern "${loop.pattern}" executed ${loop.count}x. Threshold: 3.`);
+  if (loop.count >= LOOP_FAILURE_THRESHOLD - 1) {
+    const blocked = loop.count >= LOOP_FAILURE_THRESHOLD;
+    lines.push(
+      `⚠ S6: "${loop.pattern}" failed ${loop.count}x in a row with no diagnosis recorded ` +
+      `(threshold: ${LOOP_FAILURE_THRESHOLD}).` +
+      (blocked
+        ? ` Test runs are BLOCKED. Name the cause: record_decision(category='diagnosis', content='...') — that clears it.`
+        : ` Record the root cause with record_decision(category='diagnosis') before the next run.`)
+    );
   }
 
   process.stdout.write(lines.join("\n") + "\n");

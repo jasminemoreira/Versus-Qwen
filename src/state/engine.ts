@@ -24,7 +24,11 @@ import {
   SafeguardResult,
   validateSafeguard,
   getSafeguardsForPhase,
+  LOOP_FAILURE_THRESHOLD,
+  DIAGNOSIS_CATEGORIES,
 } from "../rules/safeguards";
+
+export { LOOP_FAILURE_THRESHOLD, DIAGNOSIS_CATEGORIES };
 
 /** Coerce a value that may arrive as string from MCP to a number */
 function toNum(val: unknown): number {
@@ -279,6 +283,7 @@ export class StateEngine {
         error: {
           message: `Cannot advance from Phase ${from} to Phase ${targetPhase}.`,
           missingCriteria: validation.missingCriteria,
+          safeguardViolations: validation.safeguardViolations,
           specsWarnings,
         },
       };
@@ -296,7 +301,7 @@ export class StateEngine {
 
     this.state.currentPhase = targetPhase;
     this.state.currentIteration = 1;
-    this.state.loopCounter = { pattern: "", count: 0, firstSeen: "", lastSeen: "" };
+    this.resetLoopCounter();
     this.save();
 
     // Returns OK with specs warnings if any
@@ -339,6 +344,12 @@ export class StateEngine {
 
     this.state.decisions.push(decision);
     this.save();
+
+    // A named diagnosis clears the S6 counter: the failures are understood.
+    if (DIAGNOSIS_CATEGORIES.includes(category.trim().toLowerCase())) {
+      this.clearLoopCredit();
+    }
+
     return decision;
   }
 
@@ -468,57 +479,109 @@ export class StateEngine {
     return status;
   }
 
-  // --- Loop Counter ---
+  // --- Loop Counter (S6) ---
 
-  incrementLoopCounter(pattern: string): { count: number; blocked: boolean } {
-    if (!this.state) return { count: 0, blocked: false };
+  /**
+   * Records the outcome of a test run. Only FAILURES accumulate: a green run is
+   * the end of the work, never a loop, so it clears the counter. Blocking is
+   * decided by the caller reading getLoopCounter() BEFORE the run.
+   */
+  recordTestOutcome(command: string, failed: boolean): { count: number } {
+    if (!this.state) return { count: 0 };
 
-    const normalized = this.normalizeCommandPattern(pattern);
-    if (!this.state.loopCounter) {
-      this.state.loopCounter = { pattern: "", count: 0, firstSeen: "", lastSeen: "" };
+    if (!failed) {
+      this.resetLoopCounter();
+      return { count: 0 };
     }
-    const counter = this.state.loopCounter;
 
-    if (counter.pattern === normalized && counter.count > 0) {
+    const normalized = this.normalizeCommandPattern(command);
+    const counter = this.state.loopCounter;
+    const now = new Date().toISOString();
+
+    if (counter && counter.pattern === normalized && counter.count > 0) {
       counter.count += 1;
-      counter.lastSeen = new Date().toISOString();
+      counter.lastSeen = now;
     } else {
       this.state.loopCounter = {
         pattern: normalized,
         count: 1,
-        firstSeen: new Date().toISOString(),
-        lastSeen: new Date().toISOString(),
+        firstSeen: now,
+        lastSeen: now,
+        lastDiagnosis: counter?.lastDiagnosis,
       };
     }
 
     this.save();
-    return { count: this.state.loopCounter.count, blocked: this.state.loopCounter.count > 3 };
+    return { count: this.state.loopCounter.count };
+  }
+
+  /**
+   * A named diagnosis was recorded — the failures so far are understood, not
+   * blind. Clears the counter and lets the next run through. This is the escape
+   * hatch the S6 block message promises.
+   */
+  clearLoopCredit(): void {
+    if (!this.state) return;
+    const now = new Date().toISOString();
+    this.state.loopCounter = {
+      pattern: "",
+      count: 0,
+      firstSeen: "",
+      lastSeen: "",
+      lastDiagnosis: now,
+    };
+    this.save();
   }
 
   resetLoopCounter(): void {
     if (!this.state) return;
-    this.state.loopCounter = { pattern: "", count: 0, firstSeen: "", lastSeen: "" };
+    this.state.loopCounter = {
+      pattern: "",
+      count: 0,
+      firstSeen: "",
+      lastSeen: "",
+      lastDiagnosis: this.state.loopCounter?.lastDiagnosis,
+    };
     this.save();
   }
 
-  getLoopCounter(): { pattern: string; count: number } {
-    if (!this.state || !this.state.loopCounter) return { pattern: "", count: 0 };
-    return { pattern: this.state.loopCounter.pattern, count: this.state.loopCounter.count };
+  /** True when undiagnosed failures reached the threshold — next test run is blocked. */
+  isLoopBlocked(): boolean {
+    return this.getLoopCounter().count >= LOOP_FAILURE_THRESHOLD;
   }
 
+  getLoopCounter(): { pattern: string; count: number; lastDiagnosis?: string } {
+    if (!this.state || !this.state.loopCounter) return { pattern: "", count: 0 };
+    const c = this.state.loopCounter;
+    return { pattern: c.pattern, count: c.count, lastDiagnosis: c.lastDiagnosis };
+  }
+
+  /**
+   * Normalizes a test command into a pattern. The suite/target argument is kept:
+   * S6 talks about iterations on the same MODULE, so `npm test -- consent` and
+   * `npm test -- link` must not collapse into the same pattern.
+   */
   private normalizeCommandPattern(cmd: string): string {
-    // Normalizes test commands to detect repetitions
-    // "npm test", "npm run test", "npx jest" → "test"
-    // "pytest src/test_foo.py", "python -m pytest" → "pytest"
     const trimmed = cmd.trim().toLowerCase();
-    if (/\b(npm\s+test|npx\s+jest|jest|vitest|mocha)\b/.test(trimmed)) return "test:js";
-    if (/\b(pytest|python\s+-m\s+pytest|unittest)\b/.test(trimmed)) return "test:py";
-    if (/\b(cargo\s+test)\b/.test(trimmed)) return "test:rust";
-    if (/\b(go\s+test)\b/.test(trimmed)) return "test:go";
-    if (/\bnpm\s+run\s+build\b/.test(trimmed)) return "build";
-    if (/\btsc\b/.test(trimmed)) return "compile";
-    // Fallback: first 50 chars
-    return trimmed.substring(0, 50);
+
+    let runner = "";
+    if (/\b(npm\s+test|npm\s+run\s+test|npx\s+jest|jest|vitest|mocha)\b/.test(trimmed)) runner = "test:js";
+    else if (/\b(pytest|python\s+-m\s+pytest|unittest)\b/.test(trimmed)) runner = "test:py";
+    else if (/\bcargo\s+test\b/.test(trimmed)) runner = "test:rust";
+    else if (/\bgo\s+test\b/.test(trimmed)) runner = "test:go";
+    else if (/\bnpm\s+run\s+build\b/.test(trimmed)) runner = "build";
+    else if (/\btsc\b/.test(trimmed)) runner = "compile";
+    else return trimmed.substring(0, 50);
+
+    // Target = the suite/file/pattern being exercised, if any. Strips flags and
+    // the runner words themselves; what remains identifies the module under test.
+    const target = trimmed
+      .replace(/^.*?\b(npm\s+run\s+test|npm\s+test|npx\s+jest|jest|vitest|mocha|pytest|python\s+-m\s+pytest|unittest|cargo\s+test|go\s+test|npm\s+run\s+build|tsc)\b/, "")
+      .replace(/(^|\s)--?[\w-]+(=\S+)?/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return target ? `${runner}:${target}` : runner;
   }
 
   // --- Meta-iteration (v1.0 → v2.0) ---
@@ -566,7 +629,7 @@ export class StateEngine {
       { id: "S6", status: "ok" },
       { id: "S7", status: "ok" },
     ];
-    this.state.loopCounter = { pattern: "", count: 0, firstSeen: "", lastSeen: "" };
+    this.resetLoopCounter();
 
     this.save();
     return { ok: true, value: { cycle: cycleCount + 1 } };

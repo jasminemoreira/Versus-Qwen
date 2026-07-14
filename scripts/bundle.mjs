@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-// Bundles the 4 entry points into standalone files (no external dependencies)
-// Output: out/bundle/ with 4 self-contained files
+// Bundles every hook + the MCP server into standalone files (no external deps).
+// Output: out/bundle/ — each file self-contained.
+// Adding an entry here also requires adding it to the deploy list in extension.ts.
 
 import { build } from "esbuild";
 import { rmSync, mkdirSync } from "fs";
@@ -20,6 +21,7 @@ const entryPoints = [
   { in: resolve(root, "src", "hooks", "inject-context.ts"), out: "inject-context" },
   { in: resolve(root, "src", "hooks", "phase-gate.ts"), out: "phase-gate" },
   { in: resolve(root, "src", "hooks", "loop-detector.ts"), out: "loop-detector" },
+  { in: resolve(root, "src", "hooks", "test-outcome.ts"), out: "test-outcome" },
   { in: resolve(root, "src", "hooks", "stop-verify.ts"), out: "stop-verify" },
   { in: resolve(root, "src", "hooks", "truncation-check.ts"), out: "truncation-check" },
   { in: resolve(root, "src", "hooks", "block-destructive.ts"), out: "block-destructive" },

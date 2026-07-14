@@ -1,6 +1,8 @@
 // Full behavioral instructions per phase of Iterative Convergence v3.6
 // Consumed by get_phase_guidance MCP tool.
 
+import { LOOP_FAILURE_THRESHOLD } from "./safeguards";
+
 export interface PhaseGuidance {
   phase: number;
   summary: string;       // ~100 chars for inject-context
@@ -547,6 +549,19 @@ Do NOT write text between modules — the next tool call must be the first tool 
 
 ### S6 alarm signal (immediate STOP):
 If creating heuristics for problems with known solutions, debugging complex logic written from scratch, doing trial-and-error on something deterministic, or spending >2 iterations on the same module → STOP, communicate, seek reference implementation (Tier 2).
+
+### S6 loop detection — what actually trips it (P5-P6):
+What S6 forbids is **blind debugging**: re-running the tests hoping something sticks, without a named cause. It does NOT forbid debugging. Four failures with four named causes is the normal cycle; four failures with no cause named is the loop.
+
+The runtime rule, enforced by hooks:
+- Only a **FAILED** test run counts. A passing run clears the counter — final verification (S4) is therefore never blockable. Test-running is the job in P6, not the offense.
+- ${LOOP_FAILURE_THRESHOLD} consecutive failures **with no diagnosis recorded between them** → the next test run is BLOCKED.
+- The escape is to name the cause: \`record_decision(phase=<5|6>, category='diagnosis', content='<root cause + the fix it implies>')\`. This clears the counter immediately. Categories 'diagnosis', 'bugfix' and 'root-cause' all count.
+- Fix a test, name why it broke, run again — the counter never accumulates and you are never blocked.
+
+Do this because it is the honest record of the debugging session, not to appease the hook: if you cannot state the root cause in one sentence, you do not have one, and that is precisely the moment S6 exists to catch. An empty ritual diagnosis defeats the safeguard and only fools you.
+
+If S6 blocks you and you genuinely cannot name a cause: that IS the finding. Go to Tier 2 — find a reference implementation, consult specs/technical/ and specs/examples/, reconsider the approach, and record THAT as the diagnosis.
 
 ### Original Scope Adversarial Review (MANDATORY before Scope Inventory — ⚠️ MUST DISPLAY):
 Before running the Scope Inventory, the LLM MUST perform an adversarial comparison between what was promised in P0 and what is actually delivered. This is the safeguard against AP10 (silent scope deferral).

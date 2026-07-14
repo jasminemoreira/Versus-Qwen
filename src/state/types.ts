@@ -27,11 +27,19 @@ export interface ProjectSpec {
   constraints: string[];         // hard constraints (e.g., "Qwen-only, no Claude Code artifacts")
 }
 
+/**
+ * S6 loop detection. `count` is consecutive test FAILURES with no diagnosis
+ * recorded between them — not test executions. A passing run, a recorded
+ * diagnosis, or a phase change all clear it. Debugging with a named cause per
+ * round is the normal cycle; failing repeatedly without naming a cause is the
+ * blind loop S6 exists to stop.
+ */
 export interface LoopCounter {
-  pattern: string;             // detected command pattern
-  count: number;               // how many times repeated
+  pattern: string;             // normalized command pattern of the failing runs
+  count: number;               // consecutive undiagnosed failures
   firstSeen: string;           // ISO timestamp
   lastSeen: string;
+  lastDiagnosis?: string;      // ISO timestamp of the diagnosis that last cleared the counter
 }
 
 export interface ScoreBreakdown {
@@ -86,6 +94,7 @@ export interface PhaseTransition {
 export interface TransitionError {
   message: string;
   missingCriteria: string[];
+  safeguardViolations?: string[];  // a violated safeguard vetoes the transition — say which
   specsWarnings?: string[];
 }
 

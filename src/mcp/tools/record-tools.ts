@@ -1,7 +1,7 @@
 // MCP Tools: recording decisions, scores, and exit criteria
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { StateEngine } from "../../state/engine";
+import { StateEngine, DIAGNOSIS_CATEGORIES } from "../../state/engine";
 import { ScoreBreakdown } from "../../state/types";
 
 export const recordDecisionTool: Tool = {
@@ -9,7 +9,10 @@ export const recordDecisionTool: Tool = {
   description:
     "Records a decision made during any phase. Decisions persist between sessions " +
     "and can be queried with get_decisions. Use to avoid losing architectural, " +
-    "scope, pattern, and other decisions.",
+    "scope, pattern, and other decisions. " +
+    "In P5-P6, category='diagnosis' also clears the S6 loop counter: it is how you " +
+    "state the root cause of a failing test before re-running. Debugging with a named " +
+    "cause per round is the normal cycle and is never blocked.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -19,7 +22,9 @@ export const recordDecisionTool: Tool = {
       },
       category: {
         type: "string",
-        description: "Category: 'architecture', 'pattern', 'constraint', 'scope', 'technology', 'requirement', 'testing'.",
+        description:
+          "Category: 'architecture', 'pattern', 'constraint', 'scope', 'technology', 'requirement', 'testing', " +
+          "'diagnosis' (root cause of a test failure — clears the S6 loop counter; 'bugfix' and 'root-cause' are aliases).",
       },
       content: {
         type: "string",
@@ -98,11 +103,17 @@ export function handleRecordDecision(
 ): string {
   try {
     const decision = engine.recordDecision(args.phase, args.category, args.content);
-    return JSON.stringify({
+    const result: Record<string, any> = {
       success: true,
       id: decision.id,
       timestamp: decision.timestamp,
-    });
+    };
+
+    if (DIAGNOSIS_CATEGORIES.includes(args.category.trim().toLowerCase())) {
+      result._s6 = "Diagnosis recorded — S6 loop counter cleared. The next test run will go through.";
+    }
+
+    return JSON.stringify(result);
   } catch (err) {
     return JSON.stringify({ success: false, error: String(err) });
   }

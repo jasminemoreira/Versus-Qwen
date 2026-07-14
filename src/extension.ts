@@ -190,7 +190,18 @@ export function activate(context: vscode.ExtensionContext) {
 function deployServer(extensionPath: string, workspacePath: string) {
   const bundleDir = path.join(extensionPath, "out", "bundle");
   const targetDir = path.join(workspacePath, ".versus");
-  const files = ["inject-context.js", "phase-gate.js", "loop-detector.js", "server.js"];
+  // Must list every bundle referenced by buildOrchestratorHooks() in setup.ts —
+  // a hook registered in settings.json whose file is missing here fails silently.
+  const files = [
+    "inject-context.js",
+    "phase-gate.js",
+    "loop-detector.js",
+    "test-outcome.js",
+    "truncation-check.js",
+    "block-destructive.js",
+    "stop-verify.js",
+    "server.js",
+  ];
 
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });

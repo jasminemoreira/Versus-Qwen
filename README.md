@@ -79,7 +79,13 @@ The methodology maximizes `E = I₀/C` (relevant information / total context con
 |---|---|---|
 | **inject-context** | `UserPromptSubmit` | Injects phase, score, and recent decisions into each prompt |
 | **phase-gate** | `PreToolUse` (edit/write_file) | Blocks code editing in Phases 0-4 |
-| **loop-detector** | `PreToolUse` (bash) | Detects repetitive test executions (>3x) |
+| **loop-detector** | `PreToolUse` (bash) | Blocks a test run after 3 consecutive failures with no diagnosis recorded (S6) |
+| **test-outcome** | `PostToolUse` (bash) | Counts failed test runs; a passing run or a recorded diagnosis clears the counter |
+| **block-destructive** | `PreToolUse` (bash) | Blocks destructive commands |
+| **truncation-check** | `PostToolUse` (grep/bash) | Warns when tool output was truncated |
+| **stop-verify** | `Stop` | Verifies methodology state before the turn ends |
+
+**Loop detection counts failures, not executions.** Re-running the tests after a named fix is the normal debugging cycle, not a loop — so only a *failed* run accumulates, a passing run clears the counter, and `record_decision(category='diagnosis')` clears it too. Verification (S4) is therefore never blockable: the green run always goes through.
 | **block-destructive** | `PreToolUse` (bash) | Blocks destructive commands (rm -rf, force push, DROP TABLE) |
 | **truncation-check** | `PostToolUse` (grep_search/bash) | Detects when tool output was truncated |
 | **stop-verify** | `Stop` | Verifies code compiles and tests pass before completing |
@@ -143,8 +149,8 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 |---|---|
 | Gateway Guard | Model forgetting to load context (>30min without `get_phase_state`) |
 | Phase Gate hook | Code editing in Phases 0-4 (blocked regardless of model) |
-| Loop Detector | Repetitive patterns (>3x same action) — safeguard S7 |
-| Compact Guidance | Summarized instructions injected into every prompt via hook |
+| Loop Detector | Blind debugging: 3 failed runs with no diagnosis named — safeguard S6 |
+| Complete Guidance | The full methodology injected into every prompt via hook |
 | Phase 7 Engine Hint | Forces meta-iteration offer even if model didn't read guidance |
 
 ## Requirements

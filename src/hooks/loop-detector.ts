@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
 // Layer 3: Loop detection — PreToolUse (Bash)
-// Detects repetitive commands (especially tests) and blocks after 3 iterations.
-// Safeguard S6: "STOP if spending >2 iterations on the same module"
+// Blocks a test run only when the previous LOOP_FAILURE_THRESHOLD runs failed
+// with no diagnosis recorded between them. Counting happens in test-outcome.ts
+// (PostToolUse), which is the only place the result of a run is visible.
+//
+// Safeguard S6: "STOP if debugging by trial-and-error instead of naming a cause"
 
-import { StateEngine } from "../state/engine";
+import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 
 interface HookInput {
   tool_name: string;
@@ -55,6 +58,12 @@ function main() {
     return;
   }
 
+  // Cheap check first: nothing accumulated, nothing to block.
+  if (!engine.isLoopBlocked()) {
+    allow();
+    return;
+  }
+
   let input = "";
   process.stdin.setEncoding("utf-8");
 
@@ -70,27 +79,26 @@ function main() {
       const hookInput: HookInput = JSON.parse(input);
       const command = hookInput.tool_input?.command || "";
 
-      // Only monitor test/build commands
       if (!isTestCommand(command)) {
         allow();
         return;
       }
 
-      const result = engine.incrementLoopCounter(command);
+      const counter = engine.getLoopCounter();
 
-      if (result.blocked) {
-        deny(
-          `[Versus] Safeguard S6 activated: test command executed ${result.count}x. ` +
-          `Loop detected. STOP and:\n` +
-          `1. Check if the bug has a known solution (Tier 2 — look for a reference implementation)\n` +
-          `2. Consult specs/technical/ and specs/examples/\n` +
-          `3. If not found, reconsider the approach\n` +
-          `4. Use record_decision() to document what you discovered\n` +
-          `The counter will be reset when advancing to the next phase.`
-        );
-      } else {
-        allow();
-      }
+      deny(
+        `[Versus] Safeguard S6 activated: ${counter.count} consecutive FAILED runs of "${counter.pattern}" ` +
+        `with no diagnosis recorded between them (threshold: ${LOOP_FAILURE_THRESHOLD}).\n` +
+        `This is the signature of blind debugging — changing things and re-running in the hope one sticks.\n\n` +
+        `To continue, name the cause. Call:\n` +
+        `  record_decision(phase=${state.currentPhase}, category='diagnosis', content='<root cause of the failure and the fix it implies>')\n` +
+        `That clears the counter immediately and the next run goes through.\n\n` +
+        `If you cannot name a cause, that IS the finding — S6 applies:\n` +
+        `1. Does this bug have a known solution? (Tier 2 — find a reference implementation)\n` +
+        `2. Check specs/technical/ and specs/examples/\n` +
+        `3. If not found, reconsider the approach and record that as the diagnosis.\n\n` +
+        `Note: a PASSING run never counts toward this — verification is never blocked.`
+      );
     } catch {
       allow();
     }

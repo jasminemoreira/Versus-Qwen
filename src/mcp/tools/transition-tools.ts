@@ -54,6 +54,7 @@ export function handleAdvancePhase(engine: StateEngine, args: { target_phase: nu
       success: false,
       error: result.error.message,
       missingCriteria: result.error.missingCriteria,
+      safeguardViolations: result.error.safeguardViolations,
       specsWarnings: result.error.specsWarnings,
     });
   }

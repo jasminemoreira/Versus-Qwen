@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] - 2026-07-14
+
+### Changed
+- **S6 loop detection now counts understanding, not commands.** The detector counted *executions* of a test command: 4 runs in a phase = blocked. But a blind loop runs the tests N times for the same unknown reason, while normal debugging runs them N times for N *named* reasons — and the old rule could not tell them apart, because it counted `bash` calls rather than diagnoses. Worse, being a `PreToolUse` hook it could not see the result of a run, so it blocked the final **green** run — the one moment where running tests is most legitimate, and the one S4 (`NEVER assume tests passed — execute and verify`) explicitly requires. In practice S6 made S4 impossible to satisfy. The new rule:
+  - Only a **FAILED** run accumulates. A passing run clears the counter — verification is never blockable.
+  - **3 consecutive failures with no diagnosis recorded between them** block the next test run (`LOOP_FAILURE_THRESHOLD` in `rules/safeguards.ts`).
+  - `record_decision(category='diagnosis' | 'bugfix' | 'root-cause')` clears the counter immediately — the escape hatch the block message always promised and never honored.
+  - Counting moved to a new `test-outcome` hook (`PostToolUse`/bash), the only place a run's result is visible; `loop-detector` (`PreToolUse`) now only blocks. Ambiguous output records nothing.
+- **`normalizeCommandPattern` no longer collapses every JS test into one pattern.** `npm test`, `npx jest`, `npm test -- consent` and `npm test -- link` all normalized to `"test:js"`, so failures in four different suites compounded into a single counter — though the S6 clause it implements speaks of iterations *on the same module*. The suite/target argument is now part of the pattern.
+
+### Fixed
+- **A blocked phase transition no longer reports an empty reason.** `validatePhaseTransition` vetoes a transition when any safeguard for the phase is `violated`, but `TransitionError` had no field for safeguard violations — they were computed and discarded. `TransitionError.safeguardViolations` added and surfaced through `advance_phase`.
+- **Three hooks had never been deployed.** `deployServer` copied only 4 of the 7 bundles while `settings.json` registered hooks pointing at `.versus/stop-verify.js`, `.versus/truncation-check.js` and `.versus/block-destructive.js` — files never written to any workspace. Dead since v0.1.x. The deploy list now covers every bundle referenced by `buildOrchestratorHooks()`.
+- `resetLoopCounter()` was dead code (the reset was inlined in `advancePhase` and `startNewCycle`); it is now the single reset path.
+
+### Notes
+- Existing `.versus/state.json` files are compatible: `LoopCounter` gained an optional `lastDiagnosis` field and `count` changed meaning (failures, not executions). A stale count clears on the first passing run, the first recorded diagnosis, or the next phase change.
+- Ported from Versus Claude v0.9.0 — same defect, same fix.
+
 ## [0.4.0] - 2026-05-02
 
 ### Added

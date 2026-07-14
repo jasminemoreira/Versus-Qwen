@@ -143,6 +143,15 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
           },
         ],
       },
+      {
+        matcher: "bash",
+        hooks: [
+          {
+            type: "command",
+            command: `node "${path.join(orchDir, "test-outcome.js")}"`,
+          },
+        ],
+      },
     ],
     Stop: [
       {

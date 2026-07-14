@@ -15,6 +15,18 @@ export interface SafeguardResult {
   details: string;
 }
 
+/**
+ * S6 loop detection. Consecutive FAILED test runs with no diagnosis recorded
+ * between them before the next run is blocked. Executions are not counted and a
+ * passing run clears the counter: re-running after a named fix is the normal
+ * debugging cycle, and blocking the green run would make S4 (execute and verify)
+ * impossible to satisfy.
+ */
+export const LOOP_FAILURE_THRESHOLD = 3;
+
+/** record_decision categories that count as a named diagnosis and clear the S6 counter. */
+export const DIAGNOSIS_CATEGORIES = ["diagnosis", "bugfix", "root-cause"];
+
 export const SAFEGUARD_DEFINITIONS: SafeguardDef[] = [
   {
     id: "S0",
@@ -69,7 +81,10 @@ export const SAFEGUARD_DEFINITIONS: SafeguardDef[] = [
       "Tier 3: neither of the above. If complex domain → PoC (~2h max). " +
       "Immediate STOP if: creating heuristics for problem with known solution, debugging complex logic from scratch, " +
       "trial-and-error on something deterministic, or >2 iterations on the same module. " +
-      "Checklist per module: mature lib? → if not, why? → documented algorithm? → portable ref? → decision.",
+      "Checklist per module: mature lib? → if not, why? → documented algorithm? → portable ref? → decision. " +
+      `Loop detection: ${LOOP_FAILURE_THRESHOLD} consecutive FAILED test runs with no diagnosis recorded between them blocks the next run. ` +
+      "A passing run never counts (S4 verification is never blockable) and record_decision(category='diagnosis') clears the counter. " +
+      "Debugging with a named cause per round is the normal cycle; failing repeatedly without naming a cause is the blind loop.",
     applicablePhases: [5, 6],
   },
   {
@@ -155,10 +170,25 @@ function validateS6(state: PhaseState): SafeguardResult {
   if (state.currentPhase < 5) {
     return { id: "S6", status: "ok", details: "Not in implementation." };
   }
+
+  const undiagnosedFailures = state.loopCounter?.count ?? 0;
+  if (undiagnosedFailures >= LOOP_FAILURE_THRESHOLD) {
+    return {
+      id: "S6",
+      status: "violated",
+      details:
+        `${undiagnosedFailures} consecutive failed runs of "${state.loopCounter.pattern}" with no diagnosis recorded. ` +
+        "Test runs are blocked. Name the root cause via record_decision(category='diagnosis') to clear it, " +
+        "or go Tier 2 (find a reference implementation) if you cannot name one.",
+    };
+  }
+
   return {
     id: "S6",
     status: "warning",
-    details: "Implementation active: verify Tier 1/2/3 per module. STOP if creating heuristics for problems with known solutions.",
+    details:
+      "Implementation active: verify Tier 1/2/3 per module. STOP if creating heuristics for problems with known solutions. " +
+      `Undiagnosed consecutive test failures: ${undiagnosedFailures}/${LOOP_FAILURE_THRESHOLD}.`,
   };
 }
 
