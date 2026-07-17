@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.3] - 2026-07-17
+
+### Changed
+- **Bundles now deploy to `.versus/qwen/` instead of `.versus/`.** All three Versus extensions (Claude, Qwen, Copilot) deployed their server + hooks to the same `.versus/` directory with the same filenames, and each registered an MCP server pointing at the same `.versus/server.js`. With two installed, whichever activated last overwrote the other's build, so `versus-qwen` could end up running the Claude server (and Claude's hooks running Qwen's), while each agent still correctly loaded only its own MCP entry (Claude reads `.mcp.json`/`.claude`, Qwen reads `.qwen/settings.json`). Qwen now installs its runtime into its own `.versus/qwen/` subfolder and points `.qwen/settings.json` there, so it can no longer collide with the sibling extensions — fixing this from the Qwen side alone, without touching the published Claude extension.
+- **`.versus/state.json` stays shared and unmoved.** The methodology state remains at `.versus/state.json` so a project stays interchangeable between Claude Code and Qwen Code: run the design phases in one, hand off to the other, same state. Only the runtime code (server + hooks) is namespaced per tool.
+
+### Notes
+- No state migration: existing projects keep `.versus/state.json` exactly where it is. On upgrade, the extension redeploys bundles into `.versus/qwen/` and repoints `.qwen/settings.json` (MCP server path + hook paths). The old Qwen `.versus/*.js` files are left untouched (they may belong to a co-installed Claude/Copilot extension) and are simply orphaned for Qwen-only users — harmless.
+
+## [0.5.2] - 2026-07-17
+
+### Fixed
+- **Removed `type: "prompt"` hooks — invalid in Qwen and surfaced as scary settings.json warnings.** `PreCompact` and both `SessionStart` hooks were registered with `type: "prompt"`, a Claude Code hook type. Qwen Code's `validateHookConfig` only accepts `"command" | "http" | "function"`, so it silently skipped these three hooks **and** flagged each with a schema warning in the user's `.qwen/settings.json` ("Value is not accepted. Valid values: 'command', 'http'"). A user reported the three warnings and reasonably suspected they were breaking the MCP server — they were not (Qwen loads hooks and MCP servers independently, and invalid hooks are dropped, never fatal), but they were dead config and a support magnet. Removed. Session-start and post-compact recovery is already provided by the `UserPromptSubmit` `inject-context` hook (`type: "command"`, works in Qwen), which re-injects full state + guidance on the first message of any session.
+
+### Notes
+- No functional change in Qwen: these three hooks never executed there. This only removes the invalid entries and the warnings they produced.
+- Same porting root cause as 0.5.1: Claude Code hook conventions (`prompt` type, `bash` matcher) carried into the Qwen extension.
+
+## [0.5.1] - 2026-07-15
+
+### Fixed
+- **Shell-tool hooks never fired in Qwen — wrong matcher name.** The `PreToolUse`/`PostToolUse` hooks that gate on shell commands were registered with `matcher: "bash"`, a Claude Code / generic tool name. Qwen Code's shell tool is named `run_shell_command` (per its `ToolNames` map: `SHELL: "run_shell_command"`), and Qwen applies matchers as `new RegExp(matcher).test(toolName)` — so `bash` matched nothing and `loop-detector`, `block-destructive` and `test-outcome` were silent no-ops. This surfaced in v0.5.0, which finally deployed those bundles (dead since v0.1.x). Matchers corrected to `run_shell_command` (and `grep_search|bash` → `grep_search|run_shell_command`). The already-correct matchers `edit|write_file` (phase-gate) and `grep_search` (truncation-check) were left unchanged, and all hook payload reads (`tool_name`, `tool_input.command`, `tool_response`, `file_path`) were verified against Qwen's actual hook input shape.
+- **`truncation-check` grep heuristic checked the Claude tool name.** The low-result-count branch tested `tool_name === "Grep"`; Qwen's grep tool is `grep_search`. Corrected.
+
+### Notes
+- Root of both defects: v0.5.0 was ported from the Versus Claude codebase, which carried Claude Code tool names into the Qwen hook matchers. No change to the MCP server, tools, or state format — a clean v0.5.0 install already registered and served all 15 MCP tools correctly.
+
 ## [0.5.0] - 2026-07-14
 
 ### Changed

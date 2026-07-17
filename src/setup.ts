@@ -91,7 +91,10 @@ const AUTO_APPROVED_PERMISSIONS = [
  * Generates hooks config using LOCAL project paths (.versus/).
  */
 function buildOrchestratorHooks(workspace: string): Record<string, any> {
-  const orchDir = path.join(workspace, ".versus");
+  // Qwen bundles live in .versus/qwen/ so they never collide with the sibling
+  // Versus extensions (Claude → .versus/*.js, Copilot → its own). state.json
+  // stays at .versus/state.json, shared across tools for interchangeable work.
+  const orchDir = path.join(workspace, ".versus", "qwen");
 
   return {
     UserPromptSubmit: [
@@ -115,7 +118,7 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
         ],
       },
       {
-        matcher: "bash",
+        matcher: "run_shell_command",
         hooks: [
           {
             type: "command",
@@ -124,7 +127,7 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
         ],
       },
       {
-        matcher: "bash",
+        matcher: "run_shell_command",
         hooks: [
           {
             type: "command",
@@ -135,7 +138,7 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
     ],
     PostToolUse: [
       {
-        matcher: "grep_search|bash",
+        matcher: "grep_search|run_shell_command",
         hooks: [
           {
             type: "command",
@@ -144,7 +147,7 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
         ],
       },
       {
-        matcher: "bash",
+        matcher: "run_shell_command",
         hooks: [
           {
             type: "command",
@@ -164,54 +167,12 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
         ],
       },
     ],
-    PreCompact: [
-      {
-        hooks: [
-          {
-            type: "prompt",
-            prompt:
-              "BEFORE compaction: call get_phase_state() and save the result in MEMORY.md (in your auto memory directory). Include: current phase, iteration, key decisions, next steps.",
-          },
-        ],
-      },
-    ],
-    SessionStart: [
-      {
-        matcher: "",
-        hooks: [
-          {
-            type: "prompt",
-            prompt:
-              "STOP. Before doing ANYTHING else — before reading any files, before exploring the codebase — you MUST execute these two MCP tool calls RIGHT NOW:\n" +
-              "1. Call mcp__versus-qwen__get_phase_state() to load the current methodology phase\n" +
-              "2. Call mcp__versus-qwen__get_phase_guidance() to get detailed instructions\n" +
-              "DO NOT read .versus/state.json or .versus/server.js directly. DO NOT skip these calls. " +
-              "The MCP server versus-qwen manages the IACDM methodology state. All methodology interactions MUST go through MCP tools: " +
-              "record_decision() for decisions, update_score() for scoring, mark_exit_criterion() for criteria, advance_phase() for transitions. " +
-              "If get_phase_state returns an error (project not initialized), look at the init_project tool description: it has a BOOTSTRAP PROTOCOL for brownfield projects (workspace with existing code) that requires reading surface files, presenting a proposal, getting user confirmation, then calling init_project with bootstrap_data. For empty workspaces (greenfield), just ask the user for a project name and description, then call init_project directly. " +
-              "If in Phase 6: also call get_decisions(phase=6) to recover testing progress — manual testing spans sessions.\n" +
-              "VISIBILITY: after loading state, START your first response with a one-line banner so the user knows Versus is active, e.g.: '📍 Versus ativo — Fase X (name), iteração Y. Próximo passo: <one line>.' The user must SEE that methodology context was loaded; do not load silently.",
-          },
-        ],
-      },
-      {
-        matcher: "compact",
-        hooks: [
-          {
-            type: "prompt",
-            prompt:
-              "STOP. Context was compacted. Before doing ANYTHING else, you MUST recover methodology state:\n" +
-              "1. Call mcp__versus-qwen__get_phase_state() to reload current phase\n" +
-              "2. Call mcp__versus-qwen__get_phase_guidance() to reload instructions\n" +
-              "3. Call mcp__versus-qwen__get_decisions() to reload previous decisions\n" +
-              "4. Read MEMORY.md (auto memory) for additional context\n" +
-              "DO NOT read .versus/state.json or .versus/server.js directly. DO NOT skip these calls. " +
-              "Continue where you left off only AFTER completing all 4 steps above.\n" +
-              "VISIBILITY: after recovering, START your first response with a one-line banner so the user knows Versus recovered, e.g.: '📍 Versus retomado — Fase X (name), iteração Y. Continuando: <one line>.'",
-          },
-        ],
-      },
-    ],
+    // NOTE: No PreCompact / SessionStart hooks. Qwen Code only accepts hook
+    // type "command" | "http" | "function" (validateHookConfig) — the Claude
+    // Code "prompt" type is rejected and silently skipped, and it surfaces as a
+    // schema warning in the user's settings.json. Session-start and post-compact
+    // recovery is already delivered by the UserPromptSubmit inject-context hook,
+    // which re-injects full state + guidance on the first message of any session.
   };
 }
 
@@ -320,7 +281,7 @@ export function ensureSettings(workspace: string): boolean {
 export function ensureMcpInQwenSettings(workspace: string): boolean {
   const settingsDir = path.join(workspace, ".qwen");
   const settingsPath = path.join(settingsDir, "settings.json");
-  const serverPath = path.join(workspace, ".versus", "server.js");
+  const serverPath = path.join(workspace, ".versus", "qwen", "server.js");
 
   if (!fs.existsSync(settingsDir)) {
     fs.mkdirSync(settingsDir, { recursive: true });

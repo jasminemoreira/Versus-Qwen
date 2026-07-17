@@ -33,12 +33,13 @@ function getBundleDir(): string {
 }
 
 /**
- * Copies the 4 bundles to .versus/ in the project.
- * Returns true if any file was created/updated.
+ * Copies the bundles to .versus/qwen/ in the project (own subfolder so they
+ * never collide with the sibling Versus extensions). Returns true if any file
+ * was created/updated.
  */
 function deployBundles(workspace: string): boolean {
   const bundleDir = getBundleDir();
-  const targetDir = path.join(workspace, ".versus");
+  const targetDir = path.join(workspace, ".versus", "qwen");
 
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -161,7 +162,7 @@ export function handleInitProject(
     }
   }
 
-  // Copy bundles to .versus/ of the project
+  // Copy bundles to .versus/qwen/ of the project
   const bundlesDeployed = deployBundles(workspace);
 
   // Create specs/ and subfolders if they don't exist
@@ -210,7 +211,7 @@ export function handleInitProject(
   const baseMessage =
     `NEW PROJECT '${args.name}' initialized in ${workspace}. ` +
     `This is an INDEPENDENT and AUTONOMOUS project — DO NOT fetch specs, decisions, or code from other projects. ` +
-    `Structure created: state.json, server.js + 6 hooks (in .versus/), specs/ (9 subfolders), .qwen/settings.json (MCP + hooks). ` +
+    `Structure created: .versus/state.json (shared), server.js + hooks (in .versus/qwen/), specs/ (9 subfolders), .qwen/settings.json (MCP + hooks). ` +
     `Everything local — no external dependencies. ` +
     `MANDATORY ACTION: Read ${settingsPath} with the Read tool to load permissions and hooks. ` +
     `Then call get_phase_guidance() for Phase 0 instructions. ` +

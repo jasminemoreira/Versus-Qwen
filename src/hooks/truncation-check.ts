@@ -54,7 +54,7 @@ function main() {
       }
 
       // Heuristic: very few grep results for a broad pattern
-      if (hookInput.tool_name === "Grep") {
+      if (hookInput.tool_name === "grep_search") {
         const resultCount = response.split("\n").filter((l) => l.trim()).length;
         const pattern = hookInput.tool_input?.pattern || "";
 

@@ -184,12 +184,14 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 /**
- * Copies extension bundles to .versus/ in the workspace.
+ * Copies extension bundles to .versus/qwen/ in the workspace.
+ * Own subfolder so bundles never collide with the sibling Versus extensions
+ * (Claude/Copilot); state.json stays at .versus/state.json, shared across tools.
  * Only updates if content has changed (idempotent).
  */
 function deployServer(extensionPath: string, workspacePath: string) {
   const bundleDir = path.join(extensionPath, "out", "bundle");
-  const targetDir = path.join(workspacePath, ".versus");
+  const targetDir = path.join(workspacePath, ".versus", "qwen");
   // Must list every bundle referenced by buildOrchestratorHooks() in setup.ts —
   // a hook registered in settings.json whose file is missing here fails silently.
   const files = [

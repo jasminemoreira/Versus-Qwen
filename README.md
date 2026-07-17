@@ -158,7 +158,7 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 | Requirement | Minimum | Why |
 |---|---|---|
 | **VS Code** | >= 1.85.0 | Extension API compatibility |
-| **Node.js** | >= 18.0.0 | Runs the MCP server (`node .versus/server.js`) |
+| **Node.js** | >= 18.0.0 | Runs the MCP server (`node .versus/qwen/server.js`) |
 | **Qwen Code Companion** | Latest | Extension for MCP and hooks |
 
 > **Node.js is mandatory.** Without it, the MCP server cannot start and Qwen will ignore the methodology entirely. Install from [nodejs.org](https://nodejs.org).
@@ -168,7 +168,7 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 - **[Versus for Claude](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-claude)** — IACDM for Claude Code
 - **[Versus for Copilot](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-copilot)** — IACDM for GitHub Copilot Agent Mode
 
-All extensions share the same `.versus/state.json` format.
+All extensions share the same `.versus/state.json` — a project stays interchangeable between Claude Code and Qwen Code (run the design phases in one, hand off to the other, same state). Each extension keeps its own runtime in its own subfolder (`.versus/qwen/` for this one), so co-installed extensions never collide.
 
 ## References
 
