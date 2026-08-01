@@ -24,6 +24,7 @@ export const recordDecisionTool: Tool = {
         type: "string",
         description:
           "Category: 'architecture', 'pattern', 'constraint', 'scope', 'technology', 'requirement', 'testing', " +
+          "'process' (methodology/session decisions, e.g. an LLM switch or session renewal), " +
           "'diagnosis' (root cause of a test failure — clears the S6 loop counter; 'bugfix' and 'root-cause' are aliases).",
       },
       content: {

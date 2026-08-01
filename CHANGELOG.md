@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0] - 2026-07-17
+
+### Changed
+- **LLM Switch Points are now a decision, not a notice** (ported from Versus Claude v0.10.0). Both switch points — Forward (P4→P5) and Reverse (Phase 7 → new cycle) — previously told the model to *display a notification and proceed*, which put the burden of interrupting on the user at the exact moment the choice is cheapest (before any Phase 5 code exists / before the new cycle's design begins). Now the model must **ask the user to decide in chat** (R2 format):
+  - **Forward (P4→P5):** "Continue here" (default) vs "Switch model". On "Switch model" it records `record_decision(category='process', ...)` and stops; on "Continue here" it advances and starts implementing. `advance_phase()` is called in both cases — Phase 4's gate is already satisfied, so a fresh session resumes at Phase 5 rather than re-running convergence.
+  - **Reverse (new cycle):** "Switch model" (default, since Phase 0 design wants the most capable Qwen variant) vs "Continue here", surfaced when `start_new_cycle` returns `_modelSwitchAction`.
+- **New `record_decision` category `'process'`** for methodology/session decisions (LLM switch, session renewal).
+
+### Fixed
+- Guidance and `_modelSwitchAction` text no longer reference the removed `SessionStart` hook (dropped in 0.5.2). The `retomar Versus` mechanic now correctly attributes recovery to the `inject-context` (UserPromptSubmit) hook, which fires on that message.
+
 ## [0.5.3] - 2026-07-17
 
 ### Changed

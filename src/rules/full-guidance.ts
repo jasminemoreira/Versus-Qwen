@@ -20,7 +20,7 @@ Per phase:
 - P1: 4 architecture answers. Pattern summary table. Progressive Scope decision (if applicable). Technology comparison table (if >1 option).
 - P2: Coverage matrix (modules × lenses with 🔴🟡🟢). Concentration analysis (by module + by lens). Activated conditional lenses list. Exit gate summary.
 - P3: Post-cycle decision (AI computes structural change % and criticals, presents recommendation, user confirms). Anti-scope-creep checklist verification. LOC justification (if >10% increase).
-- P4: Convergence verification report (exit criteria + safeguards + specs status). LLM Switch Point notification.
+- P4: Convergence verification report (exit criteria + safeguards + specs status). LLM Switch Point decision (asked, not announced).
 - P5: Progress announcements ("X/N completed, next: Y") after each file.
 - P6: Test Map (spec→test→type). Spec Coverage Report (COVERED/NOT COVERED/GAPS). Testing status record (TESTING STATUS / PASS / FAIL / NEXT). Manual testing report.
 - P7: Product evaluation. Project lessons (domain, stack, patterns, wrong assumptions). Meta-iteration offer.
@@ -498,13 +498,19 @@ Inform the user: "The architecture is fully validated. From Phase 5 onward, you 
 
 **HOW TO SWITCH CLEANLY:** Do NOT change the model in the current chat. Mid-conversation switching makes the new (smaller-context) model try to compact the previous session, which destroys the structured context that Versus preserves via MCP. Instead:
 1. Close the current chat and open a NEW chat with the target model
-2. Type \`retomar Versus\` — the SessionStart hook recovers state via MCP cleanly (phase, decisions, specs/), no compaction needed
+2. Type \`retomar Versus\` — the inject-context hook (UserPromptSubmit) re-injects full state via MCP cleanly on that message (phase, decisions, specs/), no compaction needed
 3. The new model starts fresh but with full methodology state"
 
 ### Next Step (MANDATORY when all items are ✅):
-1. Display the LLM Switch Point notification to the user (mandatory before advancing — see above).
-2. Call advance_phase() to move to Phase 5.
-3. Call get_phase_guidance() and begin Phase 5 implementation immediately: consult specs/ for the first module and start coding.`;
+1. Display the LLM Switch Point notification (see above).
+2. **Ask the user to decide, in chat (R2 format), default "Continue here":**
+   - **"Continue here" (Recommended if the current Qwen variant is already cost-appropriate)** — stay in this chat for Phase 5
+   - **"Switch model"** — close this chat, open a new one with the target Qwen variant, type \`retomar Versus\`
+
+   This is a DECISION, not a notice. Do NOT write "I am advancing to Phase 5; interrupt me if you want to switch" — announcing and proceeding puts the burden of interrupting on the user, at the one moment where the choice is cheapest to make. It is only free BEFORE any code exists: once Phase 5 has written files, switching means abandoning a session mid-implementation.
+3. Call advance_phase() to move to Phase 5 — in BOTH cases. Phase 4's gate is already satisfied; a new session should resume at Phase 5, not re-run the convergence check.
+4. If the user chose "Switch model": call record_decision(phase=4, category='process', content='LLM SWITCH: user will resume Phase 5 in a new chat with <model>') and STOP your response. Do not start implementing.
+5. If the user chose "Continue here": call get_phase_guidance() and begin Phase 5 implementation immediately: consult specs/ for the first module and start coding.`;
 
 // [G6] decoupled sessions + [G8] AV types
 const PHASE_5_GUIDANCE = `## Phase 5 — Code Implementation
@@ -771,9 +777,13 @@ If the user chooses to start a new cycle:
 4. Previous decisions (get_decisions) serve as context — what was discarded and why
 5. Negative scope from the previous cycle can become new scope (with operator approval)
 6. Phase 7 lessons feed into the new cycle's process
-7. Call get_phase_guidance() to load Phase 0 instructions for the new cycle
+7. **REVERSE LLM SWITCH — a decision, not a notice (when start_new_cycle returns \`_modelSwitchAction\`):** The new cycle starts at Phase 0 (design), which needs the MOST CAPABLE Qwen variant. If the user switched to a smaller Qwen variant at the previous cycle's P4→P5 switch, they are likely still on it. Display the recommendation from the \`_modelSwitchAction\` field, then **ask the user to decide in chat (R2 format):**
+   - **"Switch model" (Recommended — Phase 0 design benefits from the most capable Qwen variant)** — close this chat, open a new one with the design-grade Qwen variant, type \`retomar Versus\`
+   - **"Continue here"** — proceed with Phase 0 on the current model
 
-**⚠️ REVERSE LLM SWITCH (MUST DISPLAY when start_new_cycle returns _modelSwitchAction):** If the user switched to a smaller Qwen variant at the P4→P5 LLM Switch Point in the previous cycle, they are likely still on that model. The new cycle starts at Phase 0 (design), which benefits from the MOST CAPABLE Qwen variant. DISPLAY the model switch recommendation that appears in start_new_cycle's response (\`_modelSwitchAction\` field) and recommend the same close+reopen+retomar Versus mechanic used at the original LLM Switch Point.
+   This is a DECISION, not a notice. Do NOT display the recommendation and then load Phase 0 and proceed — announcing and proceeding puts the burden of interrupting on the user, at the one moment where the choice is cheapest to make (before the new cycle's design work begins).
+8. If the user chose "Switch model": call record_decision(phase=0, category='process', content='LLM SWITCH (reverse): user will resume Phase 0 of the new cycle in a new chat with <model>') and STOP your response. Do not load Phase 0 guidance.
+9. If the user chose "Continue here": call get_phase_guidance() to load Phase 0 instructions for the new cycle.
 
 IMPORTANT: Do NOT use init_project() for meta-iteration — that wipes all previous context. Use start_new_cycle() which preserves the knowledge base.`;
 
