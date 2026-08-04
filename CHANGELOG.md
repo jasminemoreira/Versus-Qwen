@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-08-03
+
+### Fixed
+- **Methodology no longer silently disabled in projects with `"type":"module"`** (ported from Versus Claude v0.10.1). If the project's own `package.json` declares `"type":"module"`, Node treats every `.js` under the project tree as an ES module — including the Versus CommonJS bundles — so the MCP server and hooks crashed with `ReferenceError: require is not defined in ES module scope`, and the whole methodology went dead for that project with no visible error. The deploy now writes a `package.json` of `{"type":"commonjs"}` into the bundle directory (`.versus/qwen/`), which pins CommonJS for that folder (Node resolves module type from the nearest `package.json`). Applied to both deploy paths (`deployServer` in the extension, `deployBundles` in `init_project`) via the shared `ensureCommonjsPin` helper; idempotent, never overwritten on reactivation. Existing broken projects self-heal on reopen.
+
 ## [0.6.0] - 2026-07-17
 
 ### Changed

@@ -6,7 +6,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { spawnSync } from "child_process";
 import { SidebarProvider } from "./views/sidebar";
-import { ensureSettings, ensureGlobalPermissions, ensureMcpInQwenSettings, ensureSpecsReadme } from "./setup";
+import { ensureSettings, ensureGlobalPermissions, ensureMcpInQwenSettings, ensureSpecsReadme, ensureCommonjsPin } from "./setup";
 
 let sidebarProvider: SidebarProvider | undefined;
 let outputChannel: vscode.OutputChannel;
@@ -208,6 +208,9 @@ function deployServer(extensionPath: string, workspacePath: string) {
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
+
+  // Immunize the deploy dir against a project-level "type":"module".
+  ensureCommonjsPin(targetDir);
 
   for (const file of files) {
     const src = path.join(bundleDir, file);

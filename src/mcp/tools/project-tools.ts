@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
-import { ensureSettings, ensureMcpInQwenSettings, ensureSpecsReadme } from "../../setup";
+import { ensureSettings, ensureMcpInQwenSettings, ensureSpecsReadme, ensureCommonjsPin } from "../../setup";
 
 const SPECS_SUBDIRS = [
   "references",
@@ -44,6 +44,9 @@ function deployBundles(workspace: string): boolean {
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
+
+  // Immunize the deploy dir against a project-level "type":"module".
+  ensureCommonjsPin(targetDir);
 
   let deployed = false;
   for (const file of BUNDLE_FILES) {

@@ -56,6 +56,23 @@ export function ensureSpecsReadme(workspace: string): boolean {
   return true;
 }
 
+/**
+ * Pins CommonJS for the bundle deploy directory. The project's own package.json
+ * may declare "type":"module" (common in modern JS projects), which makes Node
+ * treat every .js under the project tree as an ES module — including these
+ * CommonJS bundles (server + hooks) — so they crash with "require is not defined
+ * in ES module scope" and the methodology is silently disabled for that project.
+ * Node resolves module type from the nearest package.json, so writing one here
+ * pins CommonJS for the deploy dir only. Idempotent.
+ */
+export function ensureCommonjsPin(deployDir: string): void {
+  const pkgPath = path.join(deployDir, "package.json");
+  const pkgContent = JSON.stringify({ type: "commonjs" }, null, 2) + "\n";
+  if (!fs.existsSync(pkgPath) || fs.readFileSync(pkgPath, "utf-8") !== pkgContent) {
+    fs.writeFileSync(pkgPath, pkgContent);
+  }
+}
+
 // Permissions auto-approved in user projects when the extension initializes.
 // Includes MCP tools + general development tools so Qwen can work without
 // permission prompts for routine operations (read, write, search, execute).

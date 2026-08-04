@@ -4,11 +4,13 @@ import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { spawnSync } from "child_process";
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { ScoreBreakdown } from "../state/types";
 import { getCompleteGuidance } from "../rules/full-guidance";
 import { validateSafeguard } from "../rules/safeguards";
 import { detectOutcome } from "../hooks/test-outcome";
+import { ensureCommonjsPin } from "../setup";
 
 function createTempWorkspace(): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "versus-test-"));
@@ -555,6 +557,48 @@ test("detectOutcome: red run is a failure", () => {
 test("detectOutcome: ambiguous output records nothing", () => {
   assert.strictEqual(detectOutcome("Running tests..."), "unknown");
   assert.strictEqual(detectOutcome(""), "unknown");
+});
+
+test("ensureCommonjsPin immunizes deploy dir against project type:module", () => {
+  const ws = createTempWorkspace();
+  try {
+    // Project declares ESM at its root — makes every .js below it an ES module.
+    fs.writeFileSync(path.join(ws, "package.json"), JSON.stringify({ type: "module" }));
+    const deployDir = path.join(ws, ".versus", "qwen");
+    fs.mkdirSync(deployDir, { recursive: true });
+    // A CommonJS bundle (uses require), like the real server + hooks.
+    const probe = path.join(deployDir, "probe.js");
+    fs.writeFileSync(probe, "const p = require('path'); process.stdout.write('OK:' + typeof p.join);\n");
+
+    // Without the pin: Node treats probe.js as ESM -> require is not defined.
+    const before = spawnSync("node", [probe], { encoding: "utf-8" });
+    assert.ok(/require is not defined/i.test(before.stderr || ""), "expected ESM failure before pin");
+
+    // With the pin: CommonJS is restored for the deploy dir only.
+    ensureCommonjsPin(deployDir);
+    const pkg = JSON.parse(fs.readFileSync(path.join(deployDir, "package.json"), "utf-8"));
+    assert.strictEqual(pkg.type, "commonjs");
+    const after = spawnSync("node", [probe], { encoding: "utf-8" });
+    assert.strictEqual((after.stderr || "").trim(), "", "expected no error after pin");
+    assert.ok(after.stdout.includes("OK:function"), "expected CommonJS require to work after pin");
+  } finally {
+    cleanTempWorkspace(ws);
+  }
+});
+
+test("ensureCommonjsPin is idempotent", () => {
+  const ws = createTempWorkspace();
+  try {
+    const dir = path.join(ws, ".versus", "qwen");
+    fs.mkdirSync(dir, { recursive: true });
+    ensureCommonjsPin(dir);
+    const first = fs.readFileSync(path.join(dir, "package.json"), "utf-8");
+    ensureCommonjsPin(dir);
+    const second = fs.readFileSync(path.join(dir, "package.json"), "utf-8");
+    assert.strictEqual(first, second);
+  } finally {
+    cleanTempWorkspace(ws);
+  }
 });
 
 console.log("\n=== All tests completed ===\n");
