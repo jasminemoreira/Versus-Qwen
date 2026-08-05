@@ -399,7 +399,19 @@ Conditional lens activation: review ProjectSpec (stack, constraints, out-of-scop
 ### Coverage Matrix (mandatory) (⚠️ MUST DISPLAY complete table in chat — do NOT summarize or skip modules/lenses):
 Table of modules × lenses (universal + activated conditional) with severities.
 
-**PERSIST IT — the criterion is not met until the file exists.** Write the matrix to \`specs/design/coverage-matrix.md\` as a real table: one ROW per module, one COLUMN per applied lens, each cell the severity (🔴/🟡/🟢 or none) plus a one-line note. Key every row by the exact module name from Phase 1 — that is what lets a later failure be traced back to the lens that should have caught it. \`advance_phase()\` to Phase 3 is BLOCKED until \`specs/design/coverage-matrix.md\` exists and is non-trivial; marking coverage_matrix met is not enough. The engine cannot judge the matrix (quality is your and the user's judgment) — it only checks that the matrix survives the session as an inspectable, auditable record instead of dying in the chat.
+**PERSIST IT AS A FINDINGS TABLE — the criterion is not met until the file has this form.** Write \`specs/design/coverage-matrix.md\` as ONE ROW PER FINDING, not a severity-per-cell grid:
+
+\`\`\`
+| id | module | lens | severity | description |
+|------|--------|----------|----------|-------------|
+| P-01 | auth   | Security | 🔴 | login builds SQL by string concat → injection |
+| A-03 | auth   | Architectural | 🟡 | auth imports ui for its error toast → cycle |
+| P-02 | auth   | Security | 🔴 | duplica: none — session token never expires |
+\`\`\`
+
+Rules: every finding gets a **unique id in this project** (P-01, A-03, L-07 — pick a short prefix per lens family). Use the exact Phase-1 module name. When a finding is **the same defect** another lens already recorded, add \`duplica: <that id>\` in the description. This per-finding format — not a grid of severities — is the whole point: it is what lets a later analysis (or a post-mortem when \`auth\` breaks) tell two lenses finding the SAME defect (overlap) from two lenses finding DIFFERENT defects in the same module (orthogonality). You MAY still display a readable module×lens grid in chat, but the PERSISTED file must be the findings table.
+
+\`advance_phase()\` to Phase 3 is BLOCKED until the file exists AND contains findings rows with ids (the engine checks the form, not whether the findings are real or the \`duplica\` marks honest — that stays your and the user's judgment).
 
 ### Concentration analysis (MANDATORY after the matrix) (⚠️ MUST DISPLAY analysis in chat):
 - **Concentration by module:** Module with findings across ALL lenses → probably poorly conceived → requires REDESIGN, not patch.
@@ -428,8 +440,8 @@ TEST: "Does this change WHAT the system does?" or "WHO it serves?" → If yes = 
 const PHASE_3_GUIDANCE = `## Phase 3 — Simplification
 ### Verification: Human-AV (operator validates that complexity decreased and scope preserved)
 
-### Step 0 — Read \`specs/design/coverage-matrix.md\` (the artifact Phase 2 wrote):
-Do NOT work from memory of the chat: the matrix is the record of what was examined and where the findings concentrate, keyed by module. Address the 🔴 criticals and 🟡 important findings row by row against that file. Working from the persisted record (not recall) is what makes the eventual audit trail honest.
+### Step 0 — Read \`specs/design/coverage-matrix.md\` (the findings table Phase 2 wrote):
+Do NOT work from memory of the chat. Address the 🔴 criticals and 🟡 important findings **by id**, row by row: when you resolve P-01, say so and how. Findings marked \`duplica:\` are the same defect seen twice — resolve the defect once. This is the asset being acted on, not just stored, and referencing findings by id is what keeps the audit trail honest (a later post-mortem can check whether P-01 was actually addressed).
 
 ### Asymmetry principle (continuation of Phase 2):
 Phase 2 attacked with MULTIPLE lenses. Phase 3 responds with UNIFIED VISION.

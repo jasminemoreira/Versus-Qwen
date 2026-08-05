@@ -495,6 +495,17 @@ export class StateEngine {
     } catch { return false; }
   }
 
+  /** Counts lines in specs/<relPath> matching `pattern` (multiline). Used to check
+   *  structural form (per-finding id rows), not just existence. */
+  countArtifactRows(relPath: string, pattern: string): number {
+    try {
+      const full = path.join(this.specsPath, relPath);
+      if (!fs.existsSync(full)) return 0;
+      const text = fs.readFileSync(full, "utf-8");
+      return (text.match(new RegExp(pattern, "gm")) || []).length;
+    } catch { return 0; }
+  }
+
   /** True when the test-outcome hook witnessed a passing run in this phase. */
   witnessedTestPass(phase: number): boolean {
     const t = this.state?.lastTestOutcome;
@@ -508,6 +519,8 @@ export class StateEngine {
       if (!def.required) continue;
       if (def.artifact && !this.artifactPresent(def.artifact)) {
         out.push(`[Phase ${phase}] ${def.criterion}: required artifact specs/${def.artifact} is missing or empty. Write the structured artifact to disk — marking the criterion met is not enough; the record must survive the session and be inspectable later.`);
+      } else if (def.artifact && def.artifactRows && this.countArtifactRows(def.artifact, def.artifactRows.pattern) < def.artifactRows.count) {
+        out.push(`[Phase ${phase}] ${def.criterion}: specs/${def.artifact} exists but is not in the required structured form (found fewer than ${def.artifactRows.count} rows matching the finding-id format 'ID | module | lens | severity | …', e.g. 'P-01 | auth | Security | 🔴 | …'). A severity-only grid cannot be analysed — each finding needs its own id so overlap can be told from orthogonality.`);
       }
       if (def.verify === "test-pass" && !this.witnessedTestPass(phase)) {
         out.push(`[Phase ${phase}] ${def.criterion}: the engine did not witness a passing test run in this phase. Run your test suite so the result is verified by the test-outcome hook (S4: never assume tests passed — execute and verify). Marking the criterion met is not enough.`);

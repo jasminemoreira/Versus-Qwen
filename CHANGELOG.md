@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.1] - 2026-08-05
+
+### Changed
+- **The P2 coverage-matrix gate now checks structure, not just existence** (ported from Versus Claude v0.12.0). A file that merely existed satisfied the 0.7.0 gate — so a severity-per-cell grid (module × lens) passed, even though it cannot be analysed for overlap vs orthogonality. `coverage_matrix` now requires a **findings table**: one row per finding, `id | module | lens | severity | description`, each with a unique in-project id (P-01, A-03, …) and `duplica: <id>` when it is the same defect another lens found. `advance_phase()` to Phase 3 is BLOCKED until the file contains at least 3 finding-id rows; a severity-only grid is rejected with a message pointing at the required format. New `ExitCriterionDef.artifactRows` (pattern + count) and `engine.countArtifactRows()` back the check — form only, never whether a finding is real or a `duplica` honest (that stays the operator's judgment). Phase 2/3 guidance updated to the findings-table format and to address findings by id.
+
 ## [0.7.0] - 2026-08-05
 
 ### Changed

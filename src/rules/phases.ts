@@ -15,6 +15,11 @@ export interface ExitCriterionDef {
   required: boolean;  // required to advance
   /** Relative path under specs/ that must exist and be non-trivial to pass. */
   artifact?: string;
+  /** The artifact must contain at least `count` lines matching `pattern`. Used
+   *  where STRUCTURE is the measurement (per-finding ids in the matrix), not mere
+   *  existence. Form, not content — the engine does not judge whether a finding is
+   *  real or the `duplica` honest. */
+  artifactRows?: { pattern: string; count: number };
   /** Mechanical verification beyond the boolean. "test-pass": the test-outcome
    *  hook must have witnessed a passing run in this phase (S4). */
   verify?: "test-pass";
@@ -105,7 +110,7 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   // Phase 2
   { phase: 2, criterion: "activated_lenses_recorded", description: "Activated conditional lenses recorded via record_decision(category='architecture') with justification for each non-activated lens — includes 8 situational lenses and 4 Domain Transfer Lenses (Control Engineering, Game Theory, Linguistics/Grammar, Mechanical Engineering)", required: true },
   { phase: 2, criterion: "lenses_applied", description: "All 7 universal lenses + all activated conditional lenses applied to each module (no lens skipped — absence of findings is a valid result)", required: true },
-  { phase: 2, criterion: "coverage_matrix", description: "Coverage matrix modules x lenses (all applied lenses as columns), persisted to specs/design/coverage-matrix.md. The engine checks the file exists and is non-trivial, not its quality.", required: true, artifact: "design/coverage-matrix.md" },
+  { phase: 2, criterion: "coverage_matrix", description: "Coverage findings table written to specs/design/coverage-matrix.md — ONE ROW PER FINDING (id | module | lens | severity | description), each with a unique in-project id and 'duplica: <id>' when it is the same defect another lens found. Per-finding ids (not a severity-per-cell grid) are what let overlap be distinguished from orthogonality.", required: true, artifact: "design/coverage-matrix.md", artifactRows: { pattern: "\\|\\s*[A-Za-z]{1,4}-\\d+\\s*\\|", count: 3 } },
   { phase: 2, criterion: "criticals_identified", description: "Critical findings identified and classified", required: true },
   { phase: 2, criterion: "concentration_analyzed", description: "Concentration analysis performed (by module and by lens)", required: true },
 
