@@ -67,8 +67,20 @@ function writeSeverityGrid(ws: string): void {
   fs.writeFileSync(path.join(ws, "specs", "design", "coverage-matrix.md"), content);
 }
 
-/** Writes a non-trivial architecture doc so Phase 1 can advance. */
+/** Writes a non-trivial architecture doc (module table with M-ids) so Phase 1 can advance. */
 function writeArchitectureDoc(ws: string): void {
+  const content =
+    "# Architecture\n\n" +
+    "| id | module | responsibility | interface | depends-on |\n" +
+    "|------|--------|----------------|-----------|------------|\n" +
+    "| M-01 | auth | authenticate users | login(user, pass) -> Session | db |\n" +
+    "| M-02 | ui   | render views | render(state) -> DOM | auth |\n\n" +
+    "## Assumptions\n- single-threaded runtime\n";
+  fs.writeFileSync(path.join(ws, "specs", "technical", "architecture.md"), content);
+}
+
+/** A prose architecture: non-trivial, but no module-id rows — must NOT satisfy the gate. */
+function writeProseArchitecture(ws: string): void {
   const content =
     "# Architecture\n\n" +
     "## auth\nResponsibility: authenticate users. Interface: login(user, pass) -> Session. Depends on: db.\n\n" +
@@ -721,6 +733,22 @@ test("architecture_doc stamped but not persisted BLOCKS P1→P2", () => {
   const r = engine.advancePhase(2);
   assert.strictEqual(r.ok, true);
   assert.strictEqual(engine.getPhaseState()!.currentPhase, 2);
+});
+
+test("a prose architecture (no module table) BLOCKS P1→P2", () => {
+  engine.initProject("Test", "Desc");
+  engine.updateScore(95, makeFullBreakdown(95));
+  for (const c of engine.getExitCriteriaWithDefs(0)) engine.markExitCriterion(0, c.criterion, true);
+  engine.advancePhase(1);
+  for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
+  writeProseArchitecture(workspace); // non-trivial prose, but no | M-01 | rows
+  const blocked = engine.advancePhase(2);
+  assert.strictEqual(blocked.ok, false, "prose must not satisfy the module-table gate");
+  if (blocked.ok) return;
+  assert.ok(blocked.error.missingCriteria.some((m) => m.includes("structured form") || m.includes("architecture.md")));
+
+  writeArchitectureDoc(workspace); // proper module table
+  assert.strictEqual(engine.advancePhase(2).ok, true);
 });
 
 /** Fast-forward to Phase 6 with all earlier gates satisfied. */

@@ -344,7 +344,18 @@ After user confirms architecture, call update_project_spec() with:
 This structured context is injected before every message in all phases — it is the primary mechanism for enforcing P1 decisions across sessions.
 
 ### Exit: Persist the architecture document (MANDATORY — the gate requires the file)
-Write the architecture document to \`specs/technical/architecture.md\`: the ~2k-token doc a Phase 5 session needs to implement each module in isolation — modules with responsibilities, interfaces (signatures, I/O types), dependencies between them, and the assumptions listed. Key each module by a stable name; Phase 2's coverage matrix and Phase 5's implementation reference those same names. \`advance_phase()\` to Phase 2 is BLOCKED until \`specs/technical/architecture.md\` exists and is non-trivial — marking architecture_doc met is not enough. The engine checks that the record exists and survives the session, not that the architecture is good (that is your and the user's judgment).
+Write the architecture document to \`specs/technical/architecture.md\`. It MUST contain a **module table** — one row per module — so the canonical module list is machine-readable:
+
+\`\`\`
+| id   | module      | responsibility            | interface                     | depends-on |
+|------|-------------|---------------------------|-------------------------------|------------|
+| M-01 | rate-limiter| enforce per-key quota     | allow(key) -> {ok, retryAfter}| store      |
+| M-02 | store       | persist counters with TTL | incr(key, ttl) -> count       | —          |
+\`\`\`
+
+The \`id\` (M-01, M-02, …) exists only to make the row machine-recognizable; the **stable key across phases is the \`module\` name** in column 2. Phase 2's coverage matrix and Phase 5's implementation MUST use these exact names — if Phase 1 names a module \`rate-limiter\`, Phase 2 must not write \`quota\` and Phase 5 must not build \`limiter\`, or the coverage matrix's per-module traceability breaks and a post-mortem cannot close. Below the table, add the assumptions list.
+
+\`advance_phase()\` to Phase 2 is BLOCKED until \`specs/technical/architecture.md\` exists AND contains module rows with ids (M-\\d+) — a prose doc no longer passes. As with the coverage matrix, the engine checks the FORM (there is a module table), not whether the architecture is good, nor — yet — that Phase 2 actually reused these names (that cross-check is not mechanized). That stays your and the user's judgment.
 
 Then call advance_phase() to move to Phase 2. Then call get_phase_guidance() and begin Phase 2 immediately: record activated lenses and start the adversarial critique.`;
 

@@ -103,7 +103,7 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   { phase: 1, criterion: "interfaces_defined", description: "Interfaces defined (signatures, I/O types)", required: true },
   { phase: 1, criterion: "dependencies_explicit", description: "Dependencies between modules explicit", required: true },
   { phase: 1, criterion: "assumptions_listed", description: "Assumptions listed", required: true },
-  { phase: 1, criterion: "architecture_doc", description: "Architecture doc written to specs/technical/architecture.md (fits in ~2k tokens). The engine checks the file exists and is non-trivial, not its quality.", required: true, artifact: "technical/architecture.md" },
+  { phase: 1, criterion: "architecture_doc", description: "Architecture doc written to specs/technical/architecture.md, containing a MODULE TABLE (M-01 | module | responsibility | interface | depends-on) so the canonical module list is machine-readable — the same names Phase 2's matrix and Phase 5 reference", required: true, artifact: "technical/architecture.md", artifactRows: { pattern: "\\|\\s*M-\\d+\\s*\\|", count: 1 } },
   { phase: 1, criterion: "tech_100_scope", description: "Tech supports 100% of scope, tech assumptions verified", required: true },
   { phase: 1, criterion: "modules_adherent_patterns", description: "Modules adherent to chosen patterns", required: true },
 

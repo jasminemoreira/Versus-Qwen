@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.3] - 2026-08-05
+
+### Changed
+- **The P1 architecture document must now be a module table, gated on that form** (tracks Versus Claude v0.12.2). `specs/technical/architecture.md` must contain a **module table** — one row per module, `M-01 | module | responsibility | interface | depends-on` — so the canonical module list is machine-readable. `advance_phase()` to Phase 2 is BLOCKED until the file contains at least one `M-\d+` row; a prose doc no longer passes. Reuses the existing `artifactRows` mechanism: `architecture_doc` gets `artifactRows: { pattern: "\\|\\s*M-\\d+\\s*\\|", count: 1 }` (its own token — `M-\d+` for module ids, vs `[A-Za-z]{1,4}-\d+` for coverage findings). Phase 1 exit guidance rewritten to require the table (with the stable `module`-name key that Phase 2's matrix and Phase 5 must reuse). The engine checks the form only, not that later phases actually reused the names (that cross-check is not mechanized). `writeArchitectureDoc` test helper now emits a module table; added a "prose architecture BLOCKS P1→P2" test (59 pass).
+
 ## [0.7.2] - 2026-08-05
 
 ### Changed
