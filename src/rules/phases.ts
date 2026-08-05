@@ -19,7 +19,7 @@ export interface ExitCriterionDef {
    *  where STRUCTURE is the measurement (per-finding ids in the matrix), not mere
    *  existence. Form, not content — the engine does not judge whether a finding is
    *  real or the `duplica` honest. */
-  artifactRows?: { pattern: string; count: number };
+  artifactRows?: { pattern: string; count: number; example?: string };
   /** Mechanical verification beyond the boolean. "test-pass": the test-outcome
    *  hook must have witnessed a passing run in this phase (S4). */
   verify?: "test-pass";
@@ -103,14 +103,14 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   { phase: 1, criterion: "interfaces_defined", description: "Interfaces defined (signatures, I/O types)", required: true },
   { phase: 1, criterion: "dependencies_explicit", description: "Dependencies between modules explicit", required: true },
   { phase: 1, criterion: "assumptions_listed", description: "Assumptions listed", required: true },
-  { phase: 1, criterion: "architecture_doc", description: "Architecture doc written to specs/technical/architecture.md, containing a MODULE TABLE (M-01 | module | responsibility | interface | depends-on) so the canonical module list is machine-readable — the same names Phase 2's matrix and Phase 5 reference", required: true, artifact: "technical/architecture.md", artifactRows: { pattern: "\\|\\s*M-\\d+\\s*\\|", count: 1 } },
+  { phase: 1, criterion: "architecture_doc", description: "Architecture doc written to specs/technical/architecture.md, containing a MODULE TABLE (M-01 | module | responsibility | interface | depends-on) so the canonical module list is machine-readable — the same names Phase 2's matrix and Phase 5 reference", required: true, artifact: "technical/architecture.md", artifactRows: { pattern: "\\|\\s*M-\\d+\\s*\\|", count: 1, example: "M-01 | rate-limiter | enforce quota | allow(key) | store" } },
   { phase: 1, criterion: "tech_100_scope", description: "Tech supports 100% of scope, tech assumptions verified", required: true },
   { phase: 1, criterion: "modules_adherent_patterns", description: "Modules adherent to chosen patterns", required: true },
 
   // Phase 2
   { phase: 2, criterion: "activated_lenses_recorded", description: "Activated conditional lenses recorded via record_decision(category='architecture') with justification for each non-activated lens — includes 8 situational lenses and 4 Domain Transfer Lenses (Control Engineering, Game Theory, Linguistics/Grammar, Mechanical Engineering)", required: true },
   { phase: 2, criterion: "lenses_applied", description: "All 7 universal lenses + all activated conditional lenses applied to each module (no lens skipped — absence of findings is a valid result)", required: true },
-  { phase: 2, criterion: "coverage_matrix", description: "Coverage findings table written to specs/design/coverage-matrix.md — ONE ROW PER FINDING (id | module | lens | severity | description), each with a unique in-project id and 'duplica: <id>' when it is the same defect another lens found. Per-finding ids (not a severity-per-cell grid) are what let overlap be distinguished from orthogonality.", required: true, artifact: "design/coverage-matrix.md", artifactRows: { pattern: "\\|\\s*[A-Za-z]{1,4}-\\d+\\s*\\|", count: 1 } },
+  { phase: 2, criterion: "coverage_matrix", description: "Coverage findings table written to specs/design/coverage-matrix.md — ONE ROW PER FINDING (id | module | lens | severity | description), each with a unique in-project id and 'duplica: <id>' when it is the same defect another lens found. Per-finding ids (not a severity-per-cell grid) are what let overlap be distinguished from orthogonality.", required: true, artifact: "design/coverage-matrix.md", artifactRows: { pattern: "\\|\\s*[A-Za-z]{1,4}-\\d+\\s*\\|", count: 1, example: "P-01 | auth | Security | 🔴 | sql-injection in login" } },
   { phase: 2, criterion: "criticals_identified", description: "Critical findings identified and classified", required: true },
   { phase: 2, criterion: "concentration_analyzed", description: "Concentration analysis performed (by module and by lens)", required: true },
 

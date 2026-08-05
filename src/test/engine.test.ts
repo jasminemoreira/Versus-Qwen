@@ -697,7 +697,8 @@ test("a severity-only grid (no per-finding ids) BLOCKS advance", () => {
   const r = engine.advancePhase(3);
   assert.strictEqual(r.ok, false);
   if (r.ok) return;
-  assert.ok(r.error.missingCriteria[0].includes("finding-id format"));
+  assert.ok(r.error.missingCriteria[0].includes("structured form"));
+  assert.ok(r.error.missingCriteria[0].includes("P-01 | auth | Security"), "must show the coverage-matrix example, not another artifact's");
 
   writeCoverageMatrix(workspace); // proper findings table
   assert.strictEqual(engine.advancePhase(3).ok, true);
@@ -745,7 +746,9 @@ test("a prose architecture (no module table) BLOCKS P1→P2", () => {
   const blocked = engine.advancePhase(2);
   assert.strictEqual(blocked.ok, false, "prose must not satisfy the module-table gate");
   if (blocked.ok) return;
-  assert.ok(blocked.error.missingCriteria.some((m) => m.includes("structured form") || m.includes("architecture.md")));
+  const msg = blocked.error.missingCriteria.find((m) => m.includes("architecture.md"))!;
+  assert.ok(msg.includes("M-01 | rate-limiter"), "architecture failure must show the module-table example");
+  assert.ok(!msg.includes("P-01 | auth"), "must NOT show the coverage-matrix example for an architecture failure");
 
   writeArchitectureDoc(workspace); // proper module table
   assert.strictEqual(engine.advancePhase(2).ok, true);

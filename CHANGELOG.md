@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.4] - 2026-08-05
+
+### Fixed
+- **The structural-gate message now shows the failing artifact's own example** (tracks Versus Claude v0.12.3; found by the Kimi build during porting). The `artifactRows` rejection message was hardcoded with the coverage-matrix example (`P-01 | auth | Security | …`). Since the same message serves every criterion with `artifactRows`, a failing `architecture_doc` told the model to write a *finding* row into `architecture.md` — the wrong file. `artifactRows` gained an optional `example`, each criterion carries the example for its own artifact (`M-01 | rate-limiter | …` for architecture, `P-01 | auth | Security | …` for the coverage matrix), and the engine message is now generic ("structured form", "table row(s) with an id") with the per-criterion example appended. Tests assert the architecture failure shows `M-01` (not `P-01`) and vice versa.
+
 ## [0.7.3] - 2026-08-05
 
 ### Changed

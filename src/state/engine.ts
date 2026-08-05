@@ -520,7 +520,12 @@ export class StateEngine {
       if (def.artifact && !this.artifactPresent(def.artifact)) {
         out.push(`[Phase ${phase}] ${def.criterion}: required artifact specs/${def.artifact} is missing or empty. Write the structured artifact to disk — marking the criterion met is not enough; the record must survive the session and be inspectable later.`);
       } else if (def.artifact && def.artifactRows && this.countArtifactRows(def.artifact, def.artifactRows.pattern) < def.artifactRows.count) {
-        out.push(`[Phase ${phase}] ${def.criterion}: specs/${def.artifact} exists but is not in the required structured form (found fewer than ${def.artifactRows.count} rows matching the finding-id format 'ID | module | lens | severity | …', e.g. 'P-01 | auth | Security | 🔴 | …'). A severity-only grid cannot be analysed — each finding needs its own id so overlap can be told from orthogonality.`);
+        const eg = def.artifactRows.example ? `, e.g. '${def.artifactRows.example}'` : "";
+        out.push(
+          `[Phase ${phase}] ${def.criterion}: specs/${def.artifact} exists but is not in the required structured form ` +
+          `(needs at least ${def.artifactRows.count} table row(s) with an id${eg}). ` +
+          `A prose or id-less file cannot be machine-read — each row needs its own id.`
+        );
       }
       if (def.verify === "test-pass" && !this.witnessedTestPass(phase)) {
         out.push(`[Phase ${phase}] ${def.criterion}: the engine did not witness a passing test run in this phase. Run your test suite so the result is verified by the test-outcome hook (S4: never assume tests passed — execute and verify). Marking the criterion met is not enough.`);
