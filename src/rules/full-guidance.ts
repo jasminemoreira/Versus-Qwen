@@ -396,8 +396,8 @@ Conditional lens activation: review ProjectSpec (stack, constraints, out-of-scop
 4. Passes are independent (one lens at a time)
 **GENERATION MODE:** Phase 2 operates in generative mode — produce failure scenarios, not quality judgments. "How does this module fail?" generates new content (no confirmation bias anchor). "Is this design good?" asks the AI to evaluate what it produced (confirmation bias activated). The lens central questions are already in generative mode — follow them as written.
 
-### Coverage Matrix (mandatory) (⚠️ MUST DISPLAY complete table in chat — do NOT summarize or skip modules/lenses):
-Table of modules × lenses (universal + activated conditional) with severities.
+### Coverage Matrix (mandatory) (⚠️ MUST DISPLAY the findings in chat — do NOT summarize or skip modules/lenses):
+Record every finding from every applied lens (universal + activated conditional) on every module. You MAY render a readable module×lens severity grid in chat, but the PERSISTED artifact is a findings table — never a grid.
 
 **PERSIST IT AS A FINDINGS TABLE — the criterion is not met until the file has this form.** Write \`specs/design/coverage-matrix.md\` as ONE ROW PER FINDING, not a severity-per-cell grid:
 
@@ -409,7 +409,7 @@ Table of modules × lenses (universal + activated conditional) with severities.
 | P-02 | auth   | Security | 🔴 | duplica: none — session token never expires |
 \`\`\`
 
-Rules: every finding gets a **unique id in this project** (P-01, A-03, L-07 — pick a short prefix per lens family). Use the exact Phase-1 module name. When a finding is **the same defect** another lens already recorded, add \`duplica: <that id>\` in the description. This per-finding format — not a grid of severities — is the whole point: it is what lets a later analysis (or a post-mortem when \`auth\` breaks) tell two lenses finding the SAME defect (overlap) from two lenses finding DIFFERENT defects in the same module (orthogonality). You MAY still display a readable module×lens grid in chat, but the PERSISTED file must be the findings table.
+Rules: every finding gets a **unique id in this project** (P-01, A-03, … — use a consistent prefix per lens, the SAME prefix every time that lens appears). In the **\`lens\` column use the EXACT lens name from the Phase 2 lens table** (Security, Architectural, Resilience, …) — never an abbreviation or a translation, because cross-project analysis groups on this column and a "Segurança"/"SEG"/"Security" split makes the data unaggregatable. Use the exact Phase-1 module name in the \`module\` column. When a finding is **the same defect** another lens already recorded, add \`duplica: <that id>\` in the description. This per-finding format — not a grid of severities — is the whole point: it is what lets a later analysis (or a post-mortem when \`auth\` breaks) tell two lenses finding the SAME defect (overlap) from two lenses finding DIFFERENT defects in the same module (orthogonality). You MAY still display a readable module×lens grid in chat, but the PERSISTED file must be the findings table.
 
 \`advance_phase()\` to Phase 3 is BLOCKED until the file exists AND contains findings rows with ids (the engine checks the form, not whether the findings are real or the \`duplica\` marks honest — that stays your and the user's judgment).
 
@@ -422,12 +422,12 @@ Rules: every finding gets a **unique id in this project** (P-01, A-03, L-07 — 
 - 🔴 Criticals → will be addressed in Phase 3. Do NOT block advancement — Phase 3 exists precisely to resolve criticals.
 - 🟡 Important → Phase 3 addresses them or records explicit acceptance with justification (record_decision)
 - 🟢 Suggestions → can be deferred to v2.0 (record_decision)
-- Zero findings → offer via AskUserQuestion: advance to Phase 3 (optional refinement) OR skip to Phase 4
+- Zero findings across ALL lenses is a RED FLAG, not a clean bill: an adversarial pass over the universal + activated lenses that finds nothing almost always means the critique was shallow or the modules too coarse. Revisit — a real Phase 2 leaves at least one finding, and the gate to Phase 3 requires the findings table to contain it.
 
 ### Next Step (MANDATORY after displaying gate summary):
-Phase 3 always follows Phase 2 when findings exist. After displaying the gate:
-- If any findings (🔴/🟡/🟢): call advance_phase() → Phase 3. Inform: "Advancing to Phase 3 to address [N 🔴 criticals, N 🟡 important]."
-- If zero findings: offer via AskUserQuestion: "Advance to Phase 3 (optional refinement)" or "Advance to Phase 4 directly".
+Phase 3 always follows Phase 2. After displaying the gate:
+- If any findings (🔴/🟡/🟢) — the normal case: call advance_phase() → Phase 3. Inform: "Advancing to Phase 3 to address [N 🔴 criticals, N 🟡 important]."
+- If you believe there are zero findings: revisit the critique first (rare after a genuine adversarial pass). The only valid transition from Phase 2 is to Phase 3 — there is no skip to Phase 4.
 Do NOT stop and wait. Do NOT block on 🔴 count — criticals are addressed IN Phase 3, not before entering it.
 
 ### BOUNDARY RULE (Scope vs Architecture):

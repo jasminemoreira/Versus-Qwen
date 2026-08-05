@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2026-08-05
+
+### Changed
+- **Coverage-matrix gate threshold lowered to 1 finding row, and P2/P3 guidance refined** (tracks Versus Claude v0.12.0). The 0.7.1 gate required ≥3 finding-id rows; that inflates the finding count in a study whose metric *is* the number of findings. The gate now only needs to reject a grid with no ids at all, so `coverage_matrix.artifactRows.count` is **1**: a severity-only grid (0 id rows) still blocks, any real findings table passes. Guidance also aligned to the reference: the `lens` column must use the **exact canonical lens name** (Security, Architectural, … — never an abbreviation or translation, so cross-project data stays aggregatable); the stale "Table of modules × lenses … with severities" line (which contradicted the findings-table format) was removed; and the Phase 2 exit no longer offers the invalid "skip to Phase 4" — zero findings is flagged as a red flag and the only valid transition from Phase 2 is to Phase 3.
+
 ## [0.7.1] - 2026-08-05
 
 ### Changed
