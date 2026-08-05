@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.5] - 2026-08-05
+
+### Fixed
+- **The coverage-matrix gate no longer accepts an echo of the module table as findings** (tracks Versus Claude v0.12.4; found by the Kimi build). The architecture patch made Phase 1 write module ids `M-01`, and the matrix gate's pattern `[A-Za-z]{1,4}-\d+` matched `M-01` (M fits in `{1,4}`). With `count: 1`, a `coverage-matrix.md` that was just the Phase-1 module table copied over — zero actual findings — passed the Phase 2 gate. The pattern now carries a negative lookahead, `(?!M-)[A-Za-z]{1,4}-\d+`, so `M-\d+` module ids do not count while `P-01`, `A-03` and — importantly — the Mechanical Engineering lens's `MEC-01` still do. Guidance reserves the prefix: `M-` is for modules only; Mechanical Engineering uses `MEC-`, never `M-`. Added a test that a module-echo matrix blocks and a `MEC-01` finding unblocks.
+
 ## [0.7.4] - 2026-08-05
 
 ### Fixed

@@ -704,6 +704,26 @@ test("a severity-only grid (no per-finding ids) BLOCKS advance", () => {
   assert.strictEqual(engine.advancePhase(3).ok, true);
 });
 
+test("a matrix that only echoes module ids (M-) has no findings, BLOCKS", () => {
+  toPhase2Stamped();
+  // Echo of the Phase-1 module table: M- rows only, no real findings.
+  fs.writeFileSync(
+    path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# Coverage Matrix\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| M-01 | auth | — | — | echoed from architecture, not a finding |\n" +
+    "| M-02 | ui | — | — | echoed from architecture, not a finding |\n"
+  );
+  assert.strictEqual(engine.advancePhase(3).ok, false, "a module-echo matrix has zero findings and must block");
+
+  // A real finding with a non-M prefix (incl. Mechanical Engineering's MEC-) unblocks.
+  fs.writeFileSync(
+    path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# Coverage Matrix\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| MEC-01 | gearbox | Mechanical Engineering | 🔴 | backlash exceeds tolerance under sustained load |\n"
+  );
+  assert.strictEqual(engine.advancePhase(3).ok, true, "MEC- is a finding id, not a module — must count");
+});
+
 test("countArtifactRows counts finding rows, not grid rows", () => {
   engine.initProject("Test", "Desc");
   const pat = "\\|\\s*[A-Za-z]{1,4}-\\d+\\s*\\|";
