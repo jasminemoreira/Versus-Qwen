@@ -36,7 +36,7 @@ async function main() {
   const server = new Server(
     {
       name: "versus-qwen",
-      version: "0.6.1",
+      version: "0.7.0",
     },
     {
       capabilities: {
@@ -52,6 +52,10 @@ async function main() {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     try {
+      // Hooks write state.json from a separate process (lastTestOutcome, loop
+      // counter). Re-read from disk — it is authoritative — so gates like
+      // tests_passing see the witnessed run instead of stale startup state.
+      engine.load();
       const result = handleToolCall(name, (args ?? {}) as Record<string, unknown>, engine);
       return {
         content: [{ type: "text" as const, text: result }],

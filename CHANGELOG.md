@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-08-05
+
+### Changed
+- **Exit gates now require persisted/witnessed evidence, not just a boolean** (ported from Versus Claude v0.11.0). Marking a criterion `met=true` was enough to advance — so the structured work (architecture, coverage matrix, lessons) could die in the chat, and "tests passing" could be asserted without a run. Four criteria now demand real evidence the engine can check:
+  - **P1 `architecture_doc`** → `specs/technical/architecture.md` must exist and be non-trivial before `advance_phase()` to P2.
+  - **P2 `coverage_matrix`** → `specs/design/coverage-matrix.md` must exist and be non-trivial before advancing to P3.
+  - **P6 `tests_passing`** → the `test-outcome` hook must have witnessed a GREEN run *in Phase 6* before advancing to P7 (S4: never assume tests passed). A fail, or a pass witnessed in an earlier phase, does not satisfy it.
+  - **P7 `lessons_documented`** → `specs/references/lessons.md` must exist and be non-trivial before `start_new_cycle()`.
+  The engine checks existence/non-triviality and the witnessed run — never quality; that stays the operator's judgment. New `PhaseState.lastTestOutcome` records the witnessed run; `artifactPresent()` / `witnessedTestPass()` / `missingEvidence()` back the gates. Phase guidance (P1/P2/P3/P5/P6/P7) now instructs writing each artifact to its path and reading it back instead of working from chat recall.
+
+### Fixed
+- **MCP server re-reads `state.json` on every tool call.** The server loaded state once at startup, but the hooks write state from a separate process (`lastTestOutcome`, the loop counter). Without re-reading, the `tests_passing` gate would never see the witnessed pass. Disk is authoritative (the engine saves after each mutation), so the handler now calls `engine.load()` first — also fixes general staleness across the two processes.
+
 ## [0.6.1] - 2026-08-03
 
 ### Fixed

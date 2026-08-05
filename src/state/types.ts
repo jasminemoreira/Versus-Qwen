@@ -13,6 +13,8 @@ export interface PhaseState {
   exitCriteria: ExitCriterionState[];
   safeguards: SafeguardState[];
   loopCounter: LoopCounter;
+  /** Last test run the test-outcome hook witnessed. Gates tests_passing (S4). */
+  lastTestOutcome?: { outcome: "pass" | "fail"; phase: number; at: string };
   lastPhaseStateCheck?: string;  // ISO timestamp — gateway guard for smaller models
   createdAt: string;             // ISO timestamp
   updatedAt: string;

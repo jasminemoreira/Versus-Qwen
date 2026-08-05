@@ -265,6 +265,10 @@ export class StateEngine {
 
     const validation = validatePhaseTransition(from, targetPhase, this.state, exitCriteriaMet);
 
+    // Evidence gate: required artifacts must be persisted and required test
+    // runs witnessed before leaving `from`. A boolean met=true is not enough.
+    const artifactMissing = targetPhase > from ? this.missingEvidence(from) : [];
+
     // Check specs/ (warning, does not block)
     const specsWarnings: string[] = [];
     if (targetPhase >= 1) {
@@ -277,12 +281,12 @@ export class StateEngine {
       }
     }
 
-    if (!validation.valid) {
+    if (!validation.valid || artifactMissing.length > 0) {
       return {
         ok: false,
         error: {
           message: `Cannot advance from Phase ${from} to Phase ${targetPhase}.`,
-          missingCriteria: validation.missingCriteria,
+          missingCriteria: [...validation.missingCriteria, ...artifactMissing],
           safeguardViolations: validation.safeguardViolations,
           specsWarnings,
         },
@@ -479,6 +483,39 @@ export class StateEngine {
     return status;
   }
 
+  // --- Evidence gates (persisted artifacts + witnessed test runs) ---
+
+  /** True when specs/<relPath> exists and holds non-trivial content (>= 80 non-whitespace chars). */
+  artifactPresent(relPath: string): boolean {
+    try {
+      const full = path.join(this.specsPath, relPath);
+      if (!fs.existsSync(full)) return false;
+      const content = fs.readFileSync(full, "utf-8").replace(/\s/g, "");
+      return content.length >= 80;
+    } catch { return false; }
+  }
+
+  /** True when the test-outcome hook witnessed a passing run in this phase. */
+  witnessedTestPass(phase: number): boolean {
+    const t = this.state?.lastTestOutcome;
+    return !!t && t.outcome === "pass" && toNum(t.phase) === toNum(phase);
+  }
+
+  /** Required evidence (artifacts/witnessed passes) that is not yet on disk for `phase`. */
+  private missingEvidence(phase: number): string[] {
+    const out: string[] = [];
+    for (const def of getExitCriteriaForPhase(phase)) {
+      if (!def.required) continue;
+      if (def.artifact && !this.artifactPresent(def.artifact)) {
+        out.push(`[Phase ${phase}] ${def.criterion}: required artifact specs/${def.artifact} is missing or empty. Write the structured artifact to disk — marking the criterion met is not enough; the record must survive the session and be inspectable later.`);
+      }
+      if (def.verify === "test-pass" && !this.witnessedTestPass(phase)) {
+        out.push(`[Phase ${phase}] ${def.criterion}: the engine did not witness a passing test run in this phase. Run your test suite so the result is verified by the test-outcome hook (S4: never assume tests passed — execute and verify). Marking the criterion met is not enough.`);
+      }
+    }
+    return out;
+  }
+
   // --- Loop Counter (S6) ---
 
   /**
@@ -488,6 +525,14 @@ export class StateEngine {
    */
   recordTestOutcome(command: string, failed: boolean): { count: number } {
     if (!this.state) return { count: 0 };
+
+    // Witness the run for the tests_passing evidence gate (S4). The existing
+    // save() paths (resetLoopCounter on pass, save at the end on fail) persist it.
+    this.state.lastTestOutcome = {
+      outcome: failed ? "fail" : "pass",
+      phase: toNum(this.state.currentPhase),
+      at: new Date().toISOString(),
+    };
 
     if (!failed) {
       this.resetLoopCounter();
@@ -599,6 +644,12 @@ export class StateEngine {
     const unmet = p7Criteria.filter((c) => !toBool(c.met));
     if (unmet.length > 0) {
       return { ok: false, error: `Phase 7 exit criteria not met: ${unmet.map((c) => c.criterion).join(", ")}. Complete Post-Review before starting new cycle.` };
+    }
+
+    // Evidence gate: Phase 7 artifacts (lessons) must be persisted, not just marked.
+    const missing = this.missingEvidence(7);
+    if (missing.length > 0) {
+      return { ok: false, error: missing.join(" ") };
     }
 
     // Count completed cycles from history (how many times we've reached phase 7)
