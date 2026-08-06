@@ -6,6 +6,7 @@
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { getCompleteGuidance } from "../rules/full-guidance";
 import { getPhaseDefinition } from "../rules/phases";
+import { specEntryValue } from "../state/types";
 
 function main() {
   const workspacePath = process.env.QWEN_PROJECT_DIR || process.cwd();
@@ -55,17 +56,26 @@ function main() {
   // Project spec (stack, patterns, constraints, out-of-scope)
   const spec = state.projectSpec;
   if (spec) {
-    if (spec.stack.length > 0) lines.push(`Approved stack: ${spec.stack.join(", ")}`);
-    if (spec.outOfScope.length > 0) lines.push(`Out of scope: ${spec.outOfScope.join(", ")}`);
-    if (spec.patterns.length > 0) lines.push(`Patterns: ${spec.patterns.join(", ")}`);
-    if (spec.constraints.length > 0) lines.push(`Constraints: ${spec.constraints.join(", ")}`);
+    const vals = (arr: typeof spec.stack) => arr.map(specEntryValue);
+    if (spec.stack.length > 0) lines.push(`Approved stack: ${vals(spec.stack).join(", ")}`);
+    if (spec.outOfScope.length > 0) lines.push(`Out of scope: ${vals(spec.outOfScope).join(", ")}`);
+    if (spec.patterns.length > 0) lines.push(`Patterns: ${vals(spec.patterns).join(", ")}`);
+    if (spec.constraints.length > 0) lines.push(`Constraints: ${vals(spec.constraints).join(", ")}`);
   }
 
-  // P2: warn if ACTIVATED LENSES decision is missing (Step 1 not yet executed)
+  // P2: demand a lens declaration for THIS iteration. Gated on the exit criterion,
+  // not on "any decision ever" — a 2↔3 loop-back resets activated_lenses_recorded,
+  // so the warning re-fires and a fresh declaration is required each round.
   if (phase === 2) {
-    const hasLensDecision = state.decisions.some((d) => d.content.includes("ACTIVATED LENSES"));
-    if (!hasLensDecision) {
-      lines.push("⚠ P2 STEP 1 MISSING: No lens activation decision found. Call record_decision(category='architecture', content='ACTIVATED LENSES: [list]. NOT ACTIVATED: [lens — reason]') BEFORE applying any lens.");
+    const lensMet = engine.getExitCriteriaWithDefs(2)
+      .find((c) => c.criterion === "activated_lenses_recorded")?.met;
+    if (!lensMet) {
+      lines.push(
+        `⚠ P2 lens declaration required for iteration ${state.currentIteration}: call ` +
+        `record_decision(category='architecture', content='ACTIVATED LENSES — iteração ${state.currentIteration}, contra V(${state.currentIteration}): [list]. NOT ACTIVATED: [lens — reason]') ` +
+        `then mark_exit_criterion(phase=2, criterion='activated_lenses_recorded', met=true) BEFORE applying any lens. ` +
+        `On a 2↔3 loop-back this resets — re-declare against the new architecture version.`
+      );
     }
   }
 

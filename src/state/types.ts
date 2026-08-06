@@ -21,12 +21,25 @@ export interface PhaseState {
   history: PhaseTransition[];    // transition log
 }
 
+/**
+ * A projectSpec entry. Either a plain string (legacy projects) or a timestamped
+ * record capturing WHEN the entry was added and in which phase — so a later
+ * analysis can ask "which entries existed when Phase 2 declared lenses in
+ * iteration N?". Readers must accept both forms.
+ */
+export type SpecEntry = string | { value: string; phase?: number; at: string };
+
+/** Extracts the string value of a SpecEntry regardless of form. */
+export function specEntryValue(e: SpecEntry): string {
+  return typeof e === "string" ? e : e.value;
+}
+
 /** Structured technical context — survives model switches */
 export interface ProjectSpec {
-  stack: string[];               // approved technologies (e.g., "TypeScript", "Node 18+")
-  outOfScope: string[];          // explicitly excluded (e.g., "Local models")
-  patterns: string[];            // architectural patterns (e.g., "MCP server standalone")
-  constraints: string[];         // hard constraints (e.g., "Qwen-only, no Claude Code artifacts")
+  stack: SpecEntry[];            // approved technologies (e.g., "TypeScript", "Node 18+")
+  outOfScope: SpecEntry[];       // explicitly excluded (e.g., "Local models")
+  patterns: SpecEntry[];         // architectural patterns (e.g., "MCP server standalone")
+  constraints: SpecEntry[];      // hard constraints (e.g., "Qwen-only, no Claude Code artifacts")
 }
 
 /**

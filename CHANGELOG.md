@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0] - 2026-08-06
+
+### Added
+- **RO3 study contract: per-iteration lens declarations + timestamped projectSpec.** Six of the seven items from the RO3 `CORRECOES-EXTENSAO.md` contract (item 6, the per-version cross-gate `matrix.module ⊆ architecture.modules`, is deferred — see Notes):
+  - **Lenses re-declared each Phase 2↔3 round (item 1).** On a 3→2 loop-back `advancePhase` now reverts `activated_lenses_recorded` to unmet and bumps `currentIteration`, so the gate re-demands a fresh declaration — one decision *per iteration*, not one accumulated. The `inject-context` P2 warning keys on the criterion (not "any ACTIVATED LENSES decision ever"), so it re-fires on loop-back.
+  - **Declaration names its iteration and architecture version (items 1+2).** Phase 2 guidance requires the `architecture` decision to state `iteração N` and `V(N)`.
+  - **No skipping a lens for redundancy (item 3).** The old "selection principle" that dropped a lens deemed redundant with another is replaced: activation is by *project signal only*; overlap is the conclusion an analysis measures, not a premise; absence of findings is a valid result. Per-lens justification for each non-activated lens stays mandatory.
+  - **`projectSpec` entries carry a timestamp (item 4).** `stack`/`outOfScope`/`patterns`/`constraints` are now `SpecEntry[]` — each new entry is `{ value, phase, at }` (ISO). Readers accept both forms; legacy plain strings are preserved; dedup is by value. Answers "which entries existed when Phase 2 declared lenses in iteration N?".
+  - **Matrix carries an iteration section header (item 5).** Guidance requires `## Iteração N — V(N)` above each round's findings table — a section, never a new column (a column before the id would break the `artifactRows` gate and the frozen finding format); appended on each loop-back.
+  - **`duplica` also within the same lens (item 7).** Guidance: mark `duplica: <id>` when one lens files two ids for one defect, not only across lenses.
+
+### Notes
+- **Item 6 (cross-gate `matrix.module ⊆ architecture.modules`) deferred.** It must validate per-iteration (a finding from iteration 1 legitimately names a module a later architecture version removed — the T13 `quota-limiter` case), which a naive gate would turn into a block on every normally-evolving project. The RO3 parser already validates this externally, so it is redundant for now; mechanizing it safely (per-iteration matrix + per-version module table parsing) is a separate change.
+- The `update_project_spec` MCP interface is unchanged (still accepts string arrays); only the stored form gained timestamps.
+
 ## [0.7.6] - 2026-08-05
 
 ### Changed

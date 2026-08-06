@@ -14,6 +14,9 @@ import {
   Result,
   createDefaultState,
   SafeguardState,
+  SpecEntry,
+  specEntryValue,
+  ProjectSpec,
 } from "./types";
 import {
   isValidTransition,
@@ -304,7 +307,18 @@ export class StateEngine {
     });
 
     this.state.currentPhase = targetPhase;
-    this.state.currentIteration = 1;
+    if (from === 3 && targetPhase === 2) {
+      // Phase 2↔3 loop-back: a new round critiques a NEW architecture version.
+      // Count the loop and force a fresh lens declaration for this iteration —
+      // activated_lenses_recorded reverts to unmet so the gate re-demands it.
+      this.state.currentIteration += 1;
+      const lensCrit = this.state.exitCriteria.find(
+        (c) => toNum(c.phase) === 2 && c.criterion === "activated_lenses_recorded"
+      );
+      if (lensCrit) { lensCrit.met = false; lensCrit.details = undefined; }
+    } else {
+      this.state.currentIteration = 1;
+    }
     this.resetLoopCounter();
     this.save();
 
@@ -363,14 +377,20 @@ export class StateEngine {
       this.state.projectSpec = { stack: [], outOfScope: [], patterns: [], constraints: [] };
     }
     const ps = this.state.projectSpec;
-    if (spec.stack) ps.stack = dedupe([...ps.stack, ...toStringArray(spec.stack)]);
-    if (spec.outOfScope) ps.outOfScope = dedupe([...ps.outOfScope, ...toStringArray(spec.outOfScope)]);
-    if (spec.patterns) ps.patterns = dedupe([...ps.patterns, ...toStringArray(spec.patterns)]);
-    if (spec.constraints) ps.constraints = dedupe([...ps.constraints, ...toStringArray(spec.constraints)]);
+    const at = new Date().toISOString();
+    const phase = toNum(this.state.currentPhase);
+    // New entries are timestamped records (value + phase + ISO instant); existing
+    // entries (string or object) keep their form and timestamp. Dedup is by value.
+    const merge = (existing: SpecEntry[], incoming: unknown): SpecEntry[] =>
+      dedupeEntries([...existing, ...toStringArray(incoming).map((value): SpecEntry => ({ value, phase, at }))]);
+    if (spec.stack) ps.stack = merge(ps.stack, spec.stack);
+    if (spec.outOfScope) ps.outOfScope = merge(ps.outOfScope, spec.outOfScope);
+    if (spec.patterns) ps.patterns = merge(ps.patterns, spec.patterns);
+    if (spec.constraints) ps.constraints = merge(ps.constraints, spec.constraints);
     this.save();
   }
 
-  getProjectSpec(): { stack: string[]; outOfScope: string[]; patterns: string[]; constraints: string[] } {
+  getProjectSpec(): ProjectSpec {
     if (!this.state) throw new Error("Project not initialized.");
     return this.state.projectSpec ?? { stack: [], outOfScope: [], patterns: [], constraints: [] };
   }
@@ -717,6 +737,15 @@ export class StateEngine {
   }
 }
 
-function dedupe(arr: string[]): string[] {
-  return [...new Set(arr)];
+/** Dedup projectSpec entries by their string value, preserving the first (and its timestamp). */
+function dedupeEntries(arr: SpecEntry[]): SpecEntry[] {
+  const seen = new Set<string>();
+  const out: SpecEntry[] = [];
+  for (const e of arr) {
+    const v = specEntryValue(e);
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(e);
+  }
+  return out;
 }

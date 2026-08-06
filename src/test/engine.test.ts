@@ -11,6 +11,7 @@ import { getCompleteGuidance } from "../rules/full-guidance";
 import { validateSafeguard } from "../rules/safeguards";
 import { detectOutcome } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
+import { specEntryValue } from "../state/types";
 
 function createTempWorkspace(): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "versus-test-"));
@@ -390,10 +391,10 @@ test("updateProjectSpec recovers from character-split arrays", () => {
   const split = "[\"TypeScript\",\"Node 18\"]".split("") as unknown as string[];
   engine.updateProjectSpec({ stack: split });
 
-  const spec = engine.getProjectSpec();
-  assert.ok(spec.stack.includes("TypeScript"), "stack must contain TypeScript after recovery");
-  assert.ok(spec.stack.includes("Node 18"), "stack must contain Node 18 after recovery");
-  assert.ok(!spec.stack.includes("T"), "stack must NOT contain individual characters");
+  const values = engine.getProjectSpec().stack.map(specEntryValue);
+  assert.ok(values.includes("TypeScript"), "stack must contain TypeScript after recovery");
+  assert.ok(values.includes("Node 18"), "stack must contain Node 18 after recovery");
+  assert.ok(!values.includes("T"), "stack must NOT contain individual characters");
 });
 
 // --- Complete Guidance Presence Tests ---
@@ -835,6 +836,52 @@ test("start_new_cycle BLOCKED until lessons.md is persisted", () => {
   const r = engine.startNewCycle();
   assert.strictEqual(r.ok, true);
   assert.strictEqual(engine.getPhaseState()!.currentPhase, 0);
+});
+
+console.log("\n=== RO3 Contract Tests (per-iteration lenses + timestamped spec) ===\n");
+
+test("Phase 2↔3 loop-back resets activated_lenses_recorded and bumps the iteration", () => {
+  engine.initProject("Test", "Desc");
+  engine.updateScore(95, makeFullBreakdown(95));
+  writeArchitectureDoc(workspace);
+  writeCoverageMatrix(workspace);
+  for (const c of engine.getExitCriteriaWithDefs(0)) engine.markExitCriterion(0, c.criterion, true);
+  engine.advancePhase(1);
+  for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
+  engine.advancePhase(2);
+  // Iteration 1: declare lenses, advance to Phase 3.
+  for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
+  const lensMet = () => engine.getExitCriteriaWithDefs(2).find((c) => c.criterion === "activated_lenses_recorded")!.met;
+  assert.strictEqual(lensMet(), true);
+  engine.advancePhase(3);
+  // Loop back to Phase 2: lens declaration re-demanded, iteration bumped.
+  const back = engine.advancePhase(2);
+  assert.strictEqual(back.ok, true);
+  assert.strictEqual(engine.getPhaseState()!.currentPhase, 2);
+  assert.strictEqual(lensMet(), false, "loop-back must re-demand the lens declaration for the new round");
+  assert.ok(engine.getPhaseState()!.currentIteration > 1, "loop-back bumps the iteration counter");
+});
+
+test("updateProjectSpec timestamps new entries and preserves legacy strings", () => {
+  engine.initProject("Test", "Desc");
+  // A legacy plain-string entry (old projects) already in state.
+  engine.getPhaseState()!.projectSpec.stack.push("LegacyTech");
+  engine.updateProjectSpec({ stack: ["TypeScript", "Node 18+"] });
+
+  const stack = engine.getProjectSpec().stack;
+  assert.ok(stack.includes("LegacyTech"), "legacy string entry preserved as-is");
+  const ts = stack.find((e) => typeof e === "object" && e.value === "TypeScript");
+  assert.ok(ts && typeof ts === "object" && typeof ts.at === "string" && ts.at.length > 0, "new entry carries an ISO timestamp");
+  assert.strictEqual((ts as { phase?: number }).phase, 0, "new entry records the phase it was added in");
+
+  // Dedup is by value across both forms.
+  engine.updateProjectSpec({ stack: ["TypeScript"] });
+  const count = engine.getProjectSpec().stack.filter((e) => specEntryValue(e) === "TypeScript").length;
+  assert.strictEqual(count, 1, "dedup by value, no duplicate");
+
+  // Value extraction works uniformly on the mixed array (what inject-context renders).
+  const values = engine.getProjectSpec().stack.map(specEntryValue);
+  assert.ok(values.includes("LegacyTech") && values.includes("TypeScript") && values.includes("Node 18+"));
 });
 
 console.log("\n=== All tests completed ===\n");
