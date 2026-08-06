@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.1] - 2026-08-06
+
+### Added
+- **RO3 item 7 completed: `duplica` within the same lens.** The 0.8.0 pass carried item 7 only as an inline clause; it is now the explicit standalone rule the contract asked for. Phase 2's findings-table rules, right after the cross-lens `duplica` sentence, now state: when one lens records the same defect twice under two ids, mark the second `duplica: <first id>` — a lens double-counting one defect inflates its own exclusive contribution, which is exactly the quantity the study measures. Guidance only; no code, gate, or test change (still 62 tests). Items 6 (cross-gate) and the `record_activated_lenses` tool remain deferred by design.
+
 ## [0.8.0] - 2026-08-06
 
 ### Added
