@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.6] - 2026-08-05
+
+### Changed
+- **Phase 3 now appends a new `## V(N+1)` architecture section instead of overwriting the previous one** (tracks Versus Claude v0.12.5; guidance only — no code, gate, or test change). The Phase 2↔3 loop critiques a different architecture each round: if V(2) removes a module, overwriting `specs/technical/architecture.md` erases the table where iteration 1's findings named it, so a finding ends up pointing at a module no artifact records — the per-module traceability the coverage matrix exists for breaks exactly where the design changed most (seen for real in the T01 pilot, `quota-limiter`). Phase 3 guidance now instructs keeping every version, appending `## V(N+1)` with its own module table; the last section is the current one.
+
 ## [0.7.5] - 2026-08-05
 
 ### Fixed

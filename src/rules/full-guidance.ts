@@ -454,6 +454,14 @@ const PHASE_3_GUIDANCE = `## Phase 3 — Simplification
 ### Step 0 — Read \`specs/design/coverage-matrix.md\` (the findings table Phase 2 wrote):
 Do NOT work from memory of the chat. Address the 🔴 criticals and 🟡 important findings **by id**, row by row: when you resolve P-01, say so and how. Findings marked \`duplica:\` are the same defect seen twice — resolve the defect once. This is the asset being acted on, not just stored, and referencing findings by id is what keeps the audit trail honest (a later post-mortem can check whether P-01 was actually addressed).
 
+### Updating the architecture doc: APPEND V(N+1), never overwrite V(N).
+Add a new \`## V(N+1)\` section to \`specs/technical/architecture.md\`, with its own module
+table — do NOT replace the previous one. The Phase 2↔3 loop critiques a DIFFERENT architecture
+each round: a finding from iteration 1 can name a module that V(2) removed. Overwrite it and
+that finding points at a module no artifact records any more, so the per-module traceability
+the coverage matrix exists for breaks exactly where the design changed most. Keep every
+version; the last section is the current one.
+
 ### Asymmetry principle (continuation of Phase 2):
 Phase 2 attacked with MULTIPLE lenses. Phase 3 responds with UNIFIED VISION.
 Individually correct corrections may be systemically contradictory.
