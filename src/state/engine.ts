@@ -308,14 +308,15 @@ export class StateEngine {
 
     this.state.currentPhase = targetPhase;
     if (from === 3 && targetPhase === 2) {
-      // Phase 2↔3 loop-back: a new round critiques a NEW architecture version.
-      // Count the loop and force a fresh lens declaration for this iteration —
-      // activated_lenses_recorded reverts to unmet so the gate re-demands it.
+      // Re-entering Phase 2 from the 2↔3 loop is a FRESH critique of the new
+      // architecture version V(N+1): lenses re-declared, findings re-produced,
+      // criticals and concentration re-analysed. Reset EVERY Phase 2 exit
+      // criterion (not just lenses) so the gate re-requires the full round and
+      // the sidebar shows it clean; bump the loop iteration counter.
       this.state.currentIteration += 1;
-      const lensCrit = this.state.exitCriteria.find(
-        (c) => toNum(c.phase) === 2 && c.criterion === "activated_lenses_recorded"
-      );
-      if (lensCrit) { lensCrit.met = false; lensCrit.details = undefined; }
+      for (const ec of this.state.exitCriteria) {
+        if (toNum(ec.phase) === 2) { ec.met = false; ec.details = undefined; }
+      }
     } else {
       this.state.currentIteration = 1;
     }

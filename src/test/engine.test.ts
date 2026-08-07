@@ -859,6 +859,11 @@ test("Phase 2↔3 loop-back resets activated_lenses_recorded and bumps the itera
   assert.strictEqual(back.ok, true);
   assert.strictEqual(engine.getPhaseState()!.currentPhase, 2);
   assert.strictEqual(lensMet(), false, "loop-back must re-demand the lens declaration for the new round");
+  // ALL Phase 2 criteria reset — the new round is a fresh critique of V(N+1).
+  assert.ok(
+    engine.getExitCriteriaWithDefs(2).every((c) => !c.met),
+    "loop-back resets every Phase 2 exit criterion, not just lenses"
+  );
   assert.ok(engine.getPhaseState()!.currentIteration > 1, "loop-back bumps the iteration counter");
 });
 

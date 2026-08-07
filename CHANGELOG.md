@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.2] - 2026-08-06
+
+### Fixed
+- **Re-entering Phase 2 through the 2↔3 loop now resets ALL Phase 2 exit criteria, not just lenses** (tracks Versus Claude v0.12.8). The item-1 loop-back (0.8.0) reset only `activated_lenses_recorded`, leaving the other four (`lenses_applied`, `coverage_matrix`, `criticals_identified`, `concentration_analyzed`) marked from iteration 1 — so the gate let iteration 1's critique of V(1) stand for the new V(N+1), and the sidebar showed Phase 2 as "4/5 done" on re-entry. Coming back to Phase 2 is a FRESH critique of the new architecture version (new matrix section, criticals and concentration re-analysed), so `advancePhase` now clears `met` on every `phase === 2` criterion on a 3→2 transition; the iteration counter still bumps. Only Phase 2 criteria are touched; the matrix artifact gate still requires the persisted file. Test strengthened to assert all five reset.
+
 ## [0.8.1] - 2026-08-06
 
 ### Added
