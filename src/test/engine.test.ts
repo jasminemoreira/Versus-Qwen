@@ -717,12 +717,45 @@ test("a matrix that only echoes module ids (M-) has no findings, BLOCKS", () => 
   assert.strictEqual(engine.advancePhase(3).ok, false, "a module-echo matrix has zero findings and must block");
 
   // A real finding with a non-M prefix (incl. Mechanical Engineering's MEC-) unblocks.
+  // Module must exist in the architecture (auth) — the cross-gate checks that too.
   fs.writeFileSync(
     path.join(workspace, "specs", "design", "coverage-matrix.md"),
     "# Coverage Matrix\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
-    "| MEC-01 | gearbox | Mechanical Engineering | 🔴 | backlash exceeds tolerance under sustained load |\n"
+    "| MEC-01 | auth | Mechanical Engineering | 🔴 | rigid coupling to db version breaks on minor upgrades |\n"
   );
   assert.strictEqual(engine.advancePhase(3).ok, true, "MEC- is a finding id, not a module — must count");
+});
+
+test("2→3 BLOCKS when a finding cites a module absent from every architecture version (drift)", () => {
+  toPhase2Stamped(); // architecture declares auth, ui
+  fs.writeFileSync(
+    path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| P-01 | phantom | Security | 🔴 | drift: this module is not in the architecture table at all |\n"
+  );
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false, "a finding on an invented module must block");
+  if (r.ok) return;
+  assert.ok(r.error.missingCriteria.some((m) => m.includes("phantom")), "drift error must name the invented module");
+});
+
+test("2→3 TOLERATES a finding on a module removed in a later architecture version (union)", () => {
+  toPhase2Stamped();
+  // V(1) has quota-limiter; V(2) removed it. Both versions kept in the file.
+  fs.writeFileSync(
+    path.join(workspace, "specs", "technical", "architecture.md"),
+    "# Architecture\n\n## V(1)\n\n| id | module | responsibility | interface | depends |\n|--|--|--|--|--|\n" +
+    "| M-01 | quota-limiter | enforce quota | allow(key) | store |\n| M-02 | store | persist counters | incr(key) | — |\n\n" +
+    "## V(2)\n\n| id | module | responsibility | interface | depends |\n|--|--|--|--|--|\n" +
+    "| M-02 | store | persist counters | incr(key) | — |\n"
+  );
+  // Iteration-1 finding legitimately names quota-limiter (present in V(1)).
+  fs.writeFileSync(
+    path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| P-01 | quota-limiter | Security | 🔴 | unbounded window lets a key bypass its quota here |\n"
+  );
+  assert.strictEqual(engine.advancePhase(3).ok, true, "a module present in SOME architecture version must be tolerated");
 });
 
 test("countArtifactRows counts finding rows, not grid rows", () => {

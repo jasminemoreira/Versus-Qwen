@@ -272,6 +272,11 @@ export class StateEngine {
     // runs witnessed before leaving `from`. A boolean met=true is not enough.
     const artifactMissing = targetPhase > from ? this.missingEvidence(from) : [];
 
+    // 2→3: every module a finding cites must exist in the architecture table
+    // (union of all ## V(N) versions — a removed module is tolerated, an
+    // invented one blocks and is named).
+    const moduleDrift = from === 2 && targetPhase === 3 ? this.moduleTraceabilityErrors() : [];
+
     // Check specs/ (warning, does not block)
     const specsWarnings: string[] = [];
     if (targetPhase >= 1) {
@@ -284,12 +289,12 @@ export class StateEngine {
       }
     }
 
-    if (!validation.valid || artifactMissing.length > 0) {
+    if (!validation.valid || artifactMissing.length > 0 || moduleDrift.length > 0) {
       return {
         ok: false,
         error: {
           message: `Cannot advance from Phase ${from} to Phase ${targetPhase}.`,
-          missingCriteria: [...validation.missingCriteria, ...artifactMissing],
+          missingCriteria: [...validation.missingCriteria, ...artifactMissing, ...moduleDrift],
           safeguardViolations: validation.safeguardViolations,
           specsWarnings,
         },
@@ -525,6 +530,41 @@ export class StateEngine {
       const text = fs.readFileSync(full, "utf-8");
       return (text.match(new RegExp(pattern, "gm")) || []).length;
     } catch { return 0; }
+  }
+
+  /** Module names in the 2nd column of table rows whose 1st cell matches idPattern.
+   *  Normalized (trim + lowercase) for comparison. */
+  private tableColumn2(relPath: string, idPattern: string): Set<string> {
+    const out = new Set<string>();
+    try {
+      const full = path.join(this.specsPath, relPath);
+      if (!fs.existsSync(full)) return out;
+      const text = fs.readFileSync(full, "utf-8");
+      const re = new RegExp(`\\|\\s*(?:${idPattern})\\s*\\|\\s*([^|]+?)\\s*\\|`, "gm");
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const v = m[1].trim().toLowerCase();
+        if (v) out.add(v);
+      }
+    } catch { /* never blocks */ }
+    return out;
+  }
+
+  /** Drift: every module a finding cites must appear in architecture.md's module
+   *  table in SOME version (union of all ## V(N)). Tolerates a removed module,
+   *  catches an invented one. Skips when either artifact is absent. */
+  private moduleTraceabilityErrors(): string[] {
+    const arch = this.tableColumn2("technical/architecture.md", "M-\\d+");
+    const matrix = this.tableColumn2("design/coverage-matrix.md", "(?!M-)[A-Za-z]{1,4}-\\d+");
+    if (arch.size === 0 || matrix.size === 0) return [];
+    const drift = [...matrix].filter((mod) => !arch.has(mod));
+    if (drift.length === 0) return [];
+    return [
+      `[Phase 2] coverage_matrix cites module(s) absent from every version of the architecture table: ${drift.join(", ")}. ` +
+      `Each module in a finding row must appear in specs/technical/architecture.md's module table (any \`## V(N)\` version). ` +
+      `Either the name drifted — fix it to the Phase-1 module name — or the architecture is missing the module. ` +
+      `Left unfixed, those findings point at modules no artifact records, and per-module traceability breaks after the session.`
+    ];
   }
 
   /** True when the test-outcome hook witnessed a passing run in this phase. */

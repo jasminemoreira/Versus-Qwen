@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0] - 2026-08-06
+
+### Added
+- **Cross-gate: matrix modules must exist in the architecture (RO3 item 6, previously deferred; tracks Versus Claude v0.13.0).** Advancing 2→3 now checks that every module a finding cites (the `module` column of a finding-id row in `coverage-matrix.md`) appears in `architecture.md`'s module table — validated against the **union of all `## V(N)` versions**, so a module removed between versions is tolerated (iteration-1 findings on it stay legitimate — the T13 `quota-limiter` case) while a name that appears in no version at all blocks and is named. This catches module-name drift with the session still open, instead of the analysis finding it later (the discarded batch had 11 findings silently pointing at nonexistent modules). New `engine` helpers `tableColumn2` / `moduleTraceabilityErrors`; skips harmlessly if either artifact is absent; only the 2→3 transition is affected. Added drift-blocks and version-union-tolerance tests.
+
+### Changed
+- **Three conditional-lens triggers widened (RO3 R2; guidance only, tracks Versus Claude v0.12.9).** Each was activating in ~0/7 projects or measuring something narrower than the lens's own central question:
+  - **UI/UX** now triggers on any surface a *person* operates — including a CLI or operational tooling, not only graphical end-user interfaces.
+  - **Sustainability / Proportionality** now triggers when the system decides, allocates, or consumes a resource whose cost grows with use (AI/ML and high-volume data are examples, not the whole set) — apply the central question, don't just match examples.
+  - **Governance / Accountability** now triggers when the system records or decides something someone will later audit, attribute, or answer for — a *system* property that a single-operator project can have, not only multi-team / compliance contexts.
+
+### Notes
+- **Protocol/paper caveat (Governance):** widening the Governance trigger changes the lens taxonomy the paper defends — the study batch now measures the corrected taxonomy, not the published one. Recorded here so the trail is honest; it is a protocol note, not an extension behavior.
+
 ## [0.8.2] - 2026-08-06
 
 ### Fixed
