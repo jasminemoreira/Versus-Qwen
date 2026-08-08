@@ -312,15 +312,15 @@ export class StateEngine {
     });
 
     this.state.currentPhase = targetPhase;
-    if (from === 3 && targetPhase === 2) {
-      // Re-entering Phase 2 from the 2↔3 loop is a FRESH critique of the new
-      // architecture version V(N+1): lenses re-declared, findings re-produced,
-      // criticals and concentration re-analysed. Reset EVERY Phase 2 exit
-      // criterion (not just lenses) so the gate re-requires the full round and
-      // the sidebar shows it clean; bump the loop iteration counter.
+    if (targetPhase < from) {
+      // Backward transition inside the 2↔3 loop (only 3→2 today): every phase from
+      // the target up to the one being left will be REDONE against the new design,
+      // so reset all their exit criteria — Phase 2 AND Phase 3. A stamp from the
+      // previous pass answered the OLD critique; it must not satisfy the new gate.
+      // Bump the loop iteration counter.
       this.state.currentIteration += 1;
       for (const ec of this.state.exitCriteria) {
-        if (toNum(ec.phase) === 2) { ec.met = false; ec.details = undefined; }
+        if (toNum(ec.phase) >= targetPhase && toNum(ec.phase) <= from) { ec.met = false; ec.details = undefined; }
       }
     } else {
       this.state.currentIteration = 1;

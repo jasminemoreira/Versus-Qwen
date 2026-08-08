@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1] - 2026-08-06
+
+### Fixed
+- **The 2↔3 loop-back now resets Phase 3 criteria too, not just Phase 2** (tracks Versus Claude v0.13.1). The 0.8.2 reset cleared only Phase 2 on a 3→2 transition; the four Phase 3 criteria (`criticals_addressed`, `important_decided`, `scope_preserved`, `architecture_simplified`) survived from the first pass. A project that looped (`2→3 · 3→2 · 2→3 · 3→4`) then cleared the `3→4` gate with iteration-1 stamps that answered iteration-1's findings — `criticals_addressed` from iteration 1 means nobody confirmed iteration 2's criticals. The reset is now general and symmetric: any backward transition (only 3→2 today) clears `met` on every criterion in `[targetPhase, from]` — Phase 2 AND Phase 3 — so each redone phase must be re-answered against the new design. `start_iteration` only bumps the counter and is unaffected. Test extended to assert Phase 3 also resets, plus a full `2→3·3→2·2→3` scenario asserting `3→4` blocks until Phase 3 is re-answered.
+
+### Notes
+- **Data consequence (batch side):** any already-run project that looped and cleared `3→4` under the old behavior carries iteration-1 stamps on Phase 3 — decide whether to discard it (as with T21 on Claude). Protocol note, not extension behavior.
+
 ## [0.9.0] - 2026-08-06
 
 ### Added

@@ -887,17 +887,43 @@ test("Phase 2↔3 loop-back resets activated_lenses_recorded and bumps the itera
   const lensMet = () => engine.getExitCriteriaWithDefs(2).find((c) => c.criterion === "activated_lenses_recorded")!.met;
   assert.strictEqual(lensMet(), true);
   engine.advancePhase(3);
-  // Loop back to Phase 2: lens declaration re-demanded, iteration bumped.
+  // Answer Phase 3 (iteration 1) too, then loop back.
+  for (const c of engine.getExitCriteriaWithDefs(3)) engine.markExitCriterion(3, c.criterion, true);
   const back = engine.advancePhase(2);
   assert.strictEqual(back.ok, true);
   assert.strictEqual(engine.getPhaseState()!.currentPhase, 2);
   assert.strictEqual(lensMet(), false, "loop-back must re-demand the lens declaration for the new round");
-  // ALL Phase 2 criteria reset — the new round is a fresh critique of V(N+1).
+  // ALL Phase 2 AND Phase 3 criteria reset — symmetric redo of the new round.
   assert.ok(
     engine.getExitCriteriaWithDefs(2).every((c) => !c.met),
     "loop-back resets every Phase 2 exit criterion, not just lenses"
   );
+  assert.ok(
+    engine.getExitCriteriaWithDefs(3).every((c) => !c.met),
+    "loop-back also resets Phase 3 (its iteration-1 stamp answered the old critique)"
+  );
   assert.ok(engine.getPhaseState()!.currentIteration > 1, "loop-back bumps the iteration counter");
+});
+
+test("2→3·3→2·2→3 then 3→4 BLOCKS until Phase 3 is re-answered", () => {
+  engine.initProject("Test", "Desc");
+  engine.updateScore(95, makeFullBreakdown(95));
+  writeArchitectureDoc(workspace);
+  writeCoverageMatrix(workspace);
+  for (const c of engine.getExitCriteriaWithDefs(0)) engine.markExitCriterion(0, c.criterion, true);
+  engine.advancePhase(1);
+  for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
+  engine.advancePhase(2);
+  for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
+  engine.advancePhase(3);                       // 2→3
+  for (const c of engine.getExitCriteriaWithDefs(3)) engine.markExitCriterion(3, c.criterion, true);
+  engine.advancePhase(2);                        // 3→2 — resets Phase 2 AND Phase 3
+  for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
+  engine.advancePhase(3);                        // 2→3 again
+  // Phase 3 NOT re-answered for this round → the gate to Phase 4 must block.
+  assert.strictEqual(engine.advancePhase(4).ok, false, "3→4 blocked until Phase 3 is re-answered for the new round");
+  for (const c of engine.getExitCriteriaWithDefs(3)) engine.markExitCriterion(3, c.criterion, true);
+  assert.strictEqual(engine.advancePhase(4).ok, true, "re-answering Phase 3 unblocks 3→4");
 });
 
 test("updateProjectSpec timestamps new entries and preserves legacy strings", () => {
