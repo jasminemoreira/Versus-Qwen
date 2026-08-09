@@ -574,8 +574,8 @@ export class StateEngine {
   /** Finding rows of the coverage matrix, each tagged with the iteration of the
    *  `## Iteração N` section it sits under (null before the first header). The lens
    *  is the 3rd cell — the row format is frozen (id | module | lens | severity | desc). */
-  private matrixFindings(): { id: string; lens: string; iteration: number | null }[] {
-    const out: { id: string; lens: string; iteration: number | null }[] = [];
+  private matrixFindings(): { id: string; lens: string; severity: string; iteration: number | null }[] {
+    const out: { id: string; lens: string; severity: string; iteration: number | null }[] = [];
     try {
       const full = path.join(this.specsPath, "design/coverage-matrix.md");
       if (!fs.existsSync(full)) return out;
@@ -592,7 +592,7 @@ export class StateEngine {
         if (cells.length && cells[cells.length - 1] === "") cells.pop();
         if (cells.length < 3) continue;
         if (!idRe.test(cells[0])) continue;
-        out.push({ id: cells[0], lens: cells[2], iteration: currentIter });
+        out.push({ id: cells[0], lens: cells[2], severity: cells[3] ?? "", iteration: currentIter });
       }
     } catch { /* telemetry never blocks */ }
     return out;
@@ -624,8 +624,20 @@ export class StateEngine {
       byIter.set(toNum(a.iteration), new Set(a.conditional));
     }
     const universals = new Set<string>(UNIVERSAL_LENSES as readonly string[]);
+    const SEVERITIES = ["🔴", "🟡", "🟢"];
     const errs: string[] = [];
     for (const f of findings) {
+      // Severity column (4th cell): exactly one of the three glyphs. Tolerant of a
+      // trailing word (🔴 Critical), strict on the signal — a word, a code like
+      // "P1", an empty cell, or two glyphs cannot be counted.
+      const sev = SEVERITIES.filter((s) => f.severity.includes(s));
+      if (sev.length !== 1) {
+        errs.push(
+          `[Phase 2] coverage_matrix row ${f.id}: severity "${f.severity || "(empty)"}" must be exactly one of ` +
+          `🔴 (Critical) / 🟡 (Important) / 🟢 (Suggestion). The analysis counts criticals vs important on this ` +
+          `column — a word, a code like "P1", or an empty cell cannot be counted.`
+        );
+      }
       if (/^nenhuma$/i.test(f.lens)) continue;                        // declared "no lens" channel
       const canon = canonicalLens(f.lens);
       if (!canon) {

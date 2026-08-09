@@ -1111,4 +1111,56 @@ test("P2 lens table renders from lenses.ts (all names + v0.12.9 triggers)", () =
   assert.ok(g.includes("| Lens | Central Question | Exclusive Failure Class | Activate when... |"), "conditional table header present");
 });
 
+// --- Severity-column gate (2→3) ---
+
+const MATRIX = () => path.join(workspace, "specs", "design", "coverage-matrix.md");
+function writeMatrixRows(rows: string): void {
+  fs.writeFileSync(MATRIX(),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" + rows);
+}
+
+test("2→3 severity gate: a word ('high') blocks", () => {
+  toPhase2NoLenses();
+  declareLenses([]);
+  writeMatrixRows("| P-01 | auth | Security | high | textual severity, not a glyph here now |\n");
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("P-01") && m.includes("must be exactly one of")));
+});
+
+test("2→3 severity gate: an empty severity cell blocks", () => {
+  toPhase2NoLenses();
+  declareLenses([]);
+  writeMatrixRows("| P-01 | auth | Security |  | empty severity cell should block here |\n");
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("P-01") && m.includes("(empty)")));
+});
+
+test("2→3 severity gate: two glyphs (ambiguous) blocks", () => {
+  toPhase2NoLenses();
+  declareLenses([]);
+  writeMatrixRows("| P-01 | auth | Security | 🔴🟡 | two glyphs are ambiguous and must block |\n");
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("P-01") && m.includes("must be exactly one of")));
+});
+
+test("2→3 severity gate: the three glyphs pass", () => {
+  toPhase2NoLenses();
+  declareLenses([]);
+  writeMatrixRows(
+    "| P-01 | auth | Security | 🔴 | a critical finding on auth login path |\n" +
+    "| P-02 | auth | Security | 🟡 | an important finding on the session ttl |\n" +
+    "| P-03 | auth | Security | 🟢 | a suggestion about the error messages here |\n");
+  assert.strictEqual(engine.advancePhase(3).ok, true);
+});
+
+test("2→3 severity gate: a glyph with a trailing word (🔴 Critical) passes", () => {
+  toPhase2NoLenses();
+  declareLenses([]);
+  writeMatrixRows("| P-01 | auth | Security | 🔴 Critical | glyph plus a decorating word is fine |\n");
+  assert.strictEqual(engine.advancePhase(3).ok, true);
+});
+
 console.log("\n=== All tests completed ===\n");

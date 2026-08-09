@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2] - 2026-08-09
+
+### Added
+- **Severity-column gate on the coverage matrix (2→3; tracks Versus Claude v0.14.2).** Same family as the lens-column gate: the guidance fixed three levels (🔴/🟡/🟢) but nothing validated the column, and the analysis counts criticals vs important on it — a non-countable value (a word, a code like `P1`, an empty cell) is a silently wrong count. Each finding's 4th cell must now contain **exactly one** of the three glyphs. Tolerant of decoration, strict on the signal: `🔴 Critical` and a bare `🔴` pass; `high`, `P1`, an empty cell (0 glyphs) and `🔴🟡` (2 glyphs, ambiguous) block and name the row. Runs inside the same `2→3` finding loop as the lens gate. Evidence: a scan of this build's corpus found only the three glyphs (🟡 523 / 🟢 222 / 🔴 154), zero variation — the strict gate blocks no existing project. Guidance gained one line; 5 new tests (84 total).
+
+### Notes
+- **Declared limitation (no gate):** the same audit considered gating the *duplicate-finding description* (§3 asks that a `duplica` still describe the defect). It did NOT become a gate — the "describes it well" part is the human oracle, and the mechanizable forms (pointer-only description, a dangling `duplica:`) occur zero times in the corpus, so a gate would guard nothing and only risk a false block. It stays a protocol limitation, not code. (No duplicate-description gate added, matching Claude.)
+
 ## [0.10.1] - 2026-08-09
 
 ### Changed (non-behavioral — injected guidance and gates are byte-identical)
