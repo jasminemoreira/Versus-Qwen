@@ -12,7 +12,7 @@ import { validateSafeguard } from "../rules/safeguards";
 import { detectOutcome } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
 import { specEntryValue } from "../state/types";
-import { CONDITIONAL_LENSES, canonicalLens } from "../rules/lenses";
+import { CONDITIONAL_LENSES, canonicalLens, UNIVERSAL_LENS_DEFS, CONDITIONAL_LENS_DEFS } from "../rules/lenses";
 
 /** Records a complete, valid lens declaration for the current critique iteration.
  *  Activates the given conditional lenses (default: Mechanical Engineering, used by
@@ -1098,6 +1098,17 @@ test("2→3 lens gate (T14): a conditional lens is legitimate in the round that 
     "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
     "| MEC-01 | auth | Mechanical Engineering | 🟡 | MEC declared for iteration 1 |\n");
   assert.strictEqual(engine.advancePhase(3).ok, true);
+});
+
+test("P2 lens table renders from lenses.ts (all names + v0.12.9 triggers)", () => {
+  const g = getCompleteGuidance();
+  for (const l of [...UNIVERSAL_LENS_DEFS, ...CONDITIONAL_LENS_DEFS]) {
+    assert.ok(g.includes(`| ${l.name} |`), `lens table must render ${l.name}`);
+  }
+  assert.ok(g.includes("including a CLI or operational tooling"), "UI/UX v0.12.9 trigger present");
+  assert.ok(g.includes("resource whose cost grows with use"), "Sustainability v0.12.9 trigger present");
+  assert.ok(g.includes("a single-operator project activates it"), "Governance v0.12.9 trigger present");
+  assert.ok(g.includes("| Lens | Central Question | Exclusive Failure Class | Activate when... |"), "conditional table header present");
 });
 
 console.log("\n=== All tests completed ===\n");

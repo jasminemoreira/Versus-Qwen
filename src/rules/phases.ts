@@ -142,46 +142,6 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   { phase: 7, criterion: "human_feedback", description: "Human feedback collected", required: true },
 ];
 
-// Migration map: old Portuguese IDs → new English IDs
-export const CRITERION_ID_MIGRATION: Record<string, string> = {
-  "usuario_confirmou": "user_confirmed",
-  "ambiguidades_zero": "ambiguities_zero",
-  "casos_uso_completos": "use_cases_complete",
-  "vocabulario_acordado": "vocabulary_agreed",
-  "fora_escopo_claro": "out_of_scope_clear",
-  "viabilidade_tech": "tech_feasibility",
-  "viabilidade_implementacao": "implementation_feasibility",
-  "pesquisa_tecnica_cientifica": "technical_scientific_research",
-  "specs_populado": "specs_populated",
-  "padroes_definidos": "patterns_defined",
-  "modulos_responsabilidade": "modules_responsibility",
-  "interfaces_definidas": "interfaces_defined",
-  "dependencias_explicitas": "dependencies_explicit",
-  "premissas_listadas": "assumptions_listed",
-  "doc_arquitetura": "architecture_doc",
-  "tech_100_escopo": "tech_100_scope",
-  "modulos_aderentes_padroes": "modules_adherent_patterns",
-  "lentes_aplicadas": "lenses_applied",
-  "matriz_cobertura": "coverage_matrix",
-  "criticos_identificados": "criticals_identified",
-  "concentracao_analisada": "concentration_analyzed",
-  "criticos_endereçados": "criticals_addressed",
-  "criticos_enderecados": "criticals_addressed",
-  "importantes_decididos": "important_decided",
-  "escopo_preservado": "scope_preserved",
-  "arquitetura_simplificada": "architecture_simplified",
-  "exit_criteria_23": "exit_criteria_p2p3",
-  "salvaguardas_s1_s5": "safeguards_s1_s5",
-  "todos_modulos": "all_modules",
-  "specs_consultado": "specs_consulted",
-  "s6_aplicado": "s6_applied",
-  "testes_passando": "tests_passing",
-  "teste_manual": "manual_testing",
-  "specs_atualizado": "specs_updated",
-  "licoes_documentadas": "lessons_documented",
-  "feedback_humano": "human_feedback",
-};
-
 export function getPhaseDefinition(phase: number): PhaseDefinition | undefined {
   return PHASE_DEFINITIONS.find((p) => p.number === phase);
 }

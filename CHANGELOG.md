@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1] - 2026-08-09
+
+### Changed (non-behavioral — injected guidance and gates are byte-identical)
+- **Lenses are a single source in `src/rules/lenses.ts` (tracks Versus Claude v0.14.1).** The central question, failure class, and activation trigger of each lens lived as hand-written markdown in the Phase 2 guidance table — a second copy of names `lenses.ts` already owned, exactly where a trigger edit could drift a name from what the gate validates. `lenses.ts` now holds the full definition of each lens (`LensDef`: name, question, failureClass, trigger); the guidance table is RENDERED from those defs (`renderLensTable`), and `UNIVERSAL_LENSES`/`CONDITIONAL_LENSES`/`ALL_LENSES` are DERIVED from them. The rendered tables are byte-identical to the previous hardcoded ones (verified by diff). New test `P2 lens table renders from lenses.ts`.
+- **Retired the Portuguese→English criterion-id migration map.** The `CRITERION_ID_MIGRATION` shim (v0.3.5→v0.3.6) and its three consumers (`engine.migrateCriterionIds()` in `load()`, the map in `phases.ts`, the sidebar lookup predicates) are removed. Evidence-gated: a scan of this build's 43 live `.versus/state.json` files found PT ids in 5, all under `INDT/lixo/jogos/` (disposable) — no project that matters. A pre-rename project reopened after this would show its criteria as unmet; none in that situation is live here.
+
 ## [0.10.0] - 2026-08-09
 
 ### Added

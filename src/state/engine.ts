@@ -23,7 +23,6 @@ import { CONDITIONAL_LENSES, UNIVERSAL_LENSES, canonicalLens } from "../rules/le
 import {
   isValidTransition,
   getExitCriteriaForPhase,
-  CRITERION_ID_MIGRATION,
 } from "../rules/phases";
 import {
   SafeguardResult,
@@ -153,34 +152,12 @@ export class StateEngine {
       if (fs.existsSync(this.statePath)) {
         const raw = fs.readFileSync(this.statePath, "utf-8");
         this.state = JSON.parse(raw) as PhaseState;
-        this.migrateCriterionIds();
         return this.state;
       }
     } catch (err) {
       // state.json corrupted — returns null
     }
     return null;
-  }
-
-  /** Migrate Portuguese criterion IDs to English (v0.3.5 → v0.3.6) */
-  private migrateCriterionIds(): void {
-    if (!this.state) return;
-    let changed = false;
-    for (const c of this.state.exitCriteria) {
-      const newId = CRITERION_ID_MIGRATION[c.criterion];
-      if (newId) {
-        c.criterion = newId;
-        changed = true;
-      }
-    }
-    for (const h of this.state.history) {
-      if (h.criteriaMet) {
-        h.criteriaMet = h.criteriaMet.map((id) => CRITERION_ID_MIGRATION[id] || id);
-      }
-    }
-    if (changed) {
-      this.save();
-    }
   }
 
   private save(): void {

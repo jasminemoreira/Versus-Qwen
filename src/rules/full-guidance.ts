@@ -2,12 +2,25 @@
 // Consumed by get_phase_guidance MCP tool.
 
 import { LOOP_FAILURE_THRESHOLD } from "./safeguards";
+import { LensDef, UNIVERSAL_LENS_DEFS, CONDITIONAL_LENS_DEFS } from "./lenses";
 
 export interface PhaseGuidance {
   phase: number;
   summary: string;       // ~100 chars for inject-context
   rules: string[];       // applicable global rules
   instructions: string;  // full phase instructions
+}
+
+/** Renders a lens table from the defs — the single source in lenses.ts — so the
+ *  Phase 2 guidance table cannot drift from the names the gates validate. */
+function renderLensTable(defs: LensDef[], withTrigger: boolean): string {
+  const header = withTrigger
+    ? "| Lens | Central Question | Exclusive Failure Class | Activate when... |\n|------|-----------------|------------------------|------------------|"
+    : "| Lens | Central Question | Exclusive Failure Class |\n|------|-----------------|------------------------|";
+  const rows = defs.map((l) => withTrigger
+    ? `| ${l.name} | ${l.question} | ${l.failureClass} | ${l.trigger} |`
+    : `| ${l.name} | ${l.question} | ${l.failureClass} |`);
+  return [header, ...rows].join("\n");
 }
 
 // Global rules injected according to phase
@@ -370,33 +383,12 @@ const PHASE_2_GUIDANCE = `## Phase 2 — Adversarial Critique
 Different lenses see different flaws. Isolated responses may be individually correct but systemically contradictory.
 
 ### Universal Lenses (ALL always applied — low cost in planning, high risk if omitted):
-| Lens | Central Question | Exclusive Failure Class |
-|------|-----------------|------------------------|
-| Assumptions | What does this design assume as true without declaring? | Failures from hidden assumptions |
-| Architectural | Can each module be replaced, removed, or tested in isolation? | Hidden coupling, circular dependencies, SRP violation |
-| Implementability | Can I code this module in a single session with available context? | Incomplete specs, insufficient granularity |
-| Scientific | Does each value/formula/algorithm have a verifiable bibliographic reference? | Invented parameters, plausibility-based logic |
-| Security | How would an attacker exploit this with minimal effort? | Unanalyzed attack surface |
-| Performance | Where are the bottlenecks? Asymptotic behavior? | Hidden bottlenecks, degradation at scale |
-| Regulatory | Does each normative requirement have traceability to a module? | Non-compliance with applicable standards |
+${renderLensTable(UNIVERSAL_LENS_DEFS, false)}
 
 Selection principle: activation is by **project signal only**. That another lens *seems* to cover the same failure class is **NOT** a reason to skip a lens — deciding in advance that two lenses overlap is the conclusion an analysis exists to measure, not a premise. If lenses that overlap never run together, the overlap becomes unobservable by construction. Absence of findings is itself a valid result: run the lens and report nothing if nothing is found. A lens is dropped only when the project has no signal that triggers it (conditional lenses) — never for redundancy with another.
 
 ### Conditional Lenses (activate based on project context from ProjectSpec):
-| Lens | Central Question | Exclusive Failure Class | Activate when... |
-|------|-----------------|------------------------|------------------|
-| Resilience | What happens when an external dependency fails, responds slowly, or returns unexpected data? | Cascading failures, retry storms, partial outages | External dependencies (APIs, DBs, queues, third-party services) |
-| UI/UX | Can the user complete their task without frustration, confusion, or error? | Confusing flows, dead-end states, missing feedback, accessibility failures | Any surface a PERSON operates — including a CLI or operational tooling, not only graphical end-user interfaces |
-| Migration / Coexistence | What breaks during the transition from old to new? Is there a rollback path? | Data loss in migration, functional regression vs. legacy, impossible rollback | Replacing or modifying existing production system |
-| Sustainability / Proportionality | Is resource consumption proportionate to value delivered? Cost at 10× scale? | GPU where CPU suffices, heavy model for simple task, infinite data retention | The system decides, allocates, or consumes a resource whose cost grows with use — e.g. (but NOT only) AI/ML, high-volume data processing, elastic infrastructure. Apply the central question, do not just match the examples |
-| Ethical / Human Impact | Who is potentially harmed? Are there audit, correction, and transparency mechanisms? | Algorithmic bias, digital exclusion, automated decisions without human recourse | Automated decisions about people (scoring, classification, moderation) |
-| Process / Workflow | Are processes, state transitions, actor responsibilities, and exception paths complete? | Orphaned states, ambiguous handoffs, missing actors, happy-path bias | Multi-actor flows, state machines, or business processes |
-| Governance / Accountability | Is every action attributable? Does every data entity have a defined owner? | No data ownership, no accountability, shadow data flows | The system records or decides something someone will later need to audit, attribute, or answer for — data with distinct owners, actions that need authorship, or an obligation to account. This is a SYSTEM property: a single-operator project activates it when the system has it (not only multi-team / compliance contexts) |
-| Observability / Operability | Can degradation be detected and incidents diagnosed in production without code changes? | Opaque systems where nobody can figure out why it failed | Production systems with operational requirements |
-| Control Engineering | Where does the system generate an error signal and correct it? Risk of oscillation or state drift? | Systems that react to events but don't regulate state — oscillation, drift, runaway feedback | State synchronization, runtime configuration affecting behavior, self-correcting or feedback-driven systems |
-| Game Theory | Do system actors have aligned incentives? Where does the design assume cooperation and may encounter strategic defection? | Architectures that work under cooperation assumptions but collapse under adversarial or strategic behavior | Multiple independent actors, public API, external integrations, marketplace or platform design |
-| Linguistics / Grammar | Is the interface contract unambiguous? Can two correct implementations of the same contract produce incompatible behaviors? | Protocol ambiguity — two correct implementations that are mutually incompatible | Inter-component communication, protocol definitions, message formats, interface contracts between independent teams |
-| Mechanical Engineering | Where are the tolerances? Does the system tolerate variation or only work at exact specification? | Rigid coupling disguised as tolerance — failure from small deviations in dependency versions, environment, or load | Module maintenance, system evolution, long-lived systems with technical debt accumulation |
+${renderLensTable(CONDITIONAL_LENS_DEFS, true)}
 
 Conditional lens activation (STEP 1, before applying any lens): review ProjectSpec (stack, constraints, out-of-scope) and decide, for EACH of the 12 conditional lenses, whether this project activates it — **by project signal only** (redundancy with another lens is never grounds to skip — see the selection principle above). Record with \`record_activated_lenses(conditional=[...], notActivated=[{lens, reason}, ...])\` — the STRUCTURED tool, NOT prose in record_decision. All 12 must be accounted for: activated, or not-activated with a concrete one-line reason. The tool validates names against the canonical set (so an abbreviation or a translation is refused at the call), and stamps the record with the current critique iteration and architecture version automatically — that is the same N you head the matrix with (\`## Iteração N — V(N)\`). \`advance_phase()\` to Phase 3 is BLOCKED until this record exists for the current iteration.
 
