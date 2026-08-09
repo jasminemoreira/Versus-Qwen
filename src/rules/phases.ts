@@ -21,8 +21,9 @@ export interface ExitCriterionDef {
    *  real or the `duplica` honest. */
   artifactRows?: { pattern: string; count: number; example?: string };
   /** Mechanical verification beyond the boolean. "test-pass": the test-outcome
-   *  hook must have witnessed a passing run in this phase (S4). */
-  verify?: "test-pass";
+   *  hook must have witnessed a passing run in this phase (S4). "lenses-recorded":
+   *  structured lens activation is on record for the current critique iteration. */
+  verify?: "test-pass" | "lenses-recorded";
 }
 
 export const PHASE_DEFINITIONS: PhaseDefinition[] = [
@@ -108,7 +109,7 @@ export const EXIT_CRITERIA: ExitCriterionDef[] = [
   { phase: 1, criterion: "modules_adherent_patterns", description: "Modules adherent to chosen patterns", required: true },
 
   // Phase 2
-  { phase: 2, criterion: "activated_lenses_recorded", description: "Activated conditional lenses recorded via record_decision(category='architecture') with justification for each non-activated lens — includes 8 situational lenses and 4 Domain Transfer Lenses (Control Engineering, Game Theory, Linguistics/Grammar, Mechanical Engineering)", required: true },
+  { phase: 2, criterion: "activated_lenses_recorded", description: "Activated conditional lenses recorded via record_activated_lenses() — the structured tool, not free-text prose. Every one of the 12 conditional lenses must appear either as activated or as not-activated WITH a reason; names are validated against the canonical set, so no abbreviation or translation can enter; a fresh record is required for each iteration of the 2↔3 loop", required: true, verify: "lenses-recorded" },
   { phase: 2, criterion: "lenses_applied", description: "All 7 universal lenses + all activated conditional lenses applied to each module (no lens skipped — absence of findings is a valid result)", required: true },
   { phase: 2, criterion: "coverage_matrix", description: "Coverage findings table written to specs/design/coverage-matrix.md — ONE ROW PER FINDING (id | module | lens | severity | description), each with a unique in-project id and 'duplica: <id>' when it is the same defect another lens found. Per-finding ids (not a severity-per-cell grid) are what let overlap be distinguished from orthogonality.", required: true, artifact: "design/coverage-matrix.md", artifactRows: { pattern: "\\|\\s*(?!M-)[A-Za-z]{1,4}-\\d+\\s*\\|", count: 1, example: "P-01 | auth | Security | 🔴 | sql-injection in login" } },
   { phase: 2, criterion: "criticals_identified", description: "Critical findings identified and classified", required: true },

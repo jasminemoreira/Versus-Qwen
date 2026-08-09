@@ -3,6 +3,7 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine, DIAGNOSIS_CATEGORIES } from "../../state/engine";
 import { ScoreBreakdown } from "../../state/types";
+import { CONDITIONAL_LENSES } from "../../rules/lenses";
 
 export const recordDecisionTool: Tool = {
   name: "record_decision",
@@ -172,4 +173,69 @@ export function handleMarkExitCriterion(
   } catch (err) {
     return JSON.stringify({ success: false, error: String(err) });
   }
+}
+
+export const recordActivatedLensesTool: Tool = {
+  name: "record_activated_lenses",
+  description:
+    "Phase 2, STEP 1 — records which conditional lenses this project activates, and why each " +
+    "of the others does not. Replaces recording the same thing as free-text prose: names are " +
+    "validated against the canonical 12, so an abbreviation or a translation is rejected at the " +
+    "call instead of silently poisoning a later cross-project analysis. " +
+    "All 12 conditional lenses must be accounted for — activated, or not-activated WITH a reason. " +
+    "Leaving one out is refused: 'I did not activate it' and 'I forgot it' must not look the same. " +
+    "The 7 universal lenses are always active and are not passed here. " +
+    "The engine stamps the record with the current critique iteration (the same N you write in the " +
+    "matrix's `## Iteração N` header) — call it again after each 2↔3 loop-back to re-declare against " +
+    "the new architecture; a fresh call within the same round corrects that round's record.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      conditional: {
+        type: "array",
+        description: "Conditional lenses ACTIVATED for this project (exact canonical names).",
+        items: { type: "string", enum: [...CONDITIONAL_LENSES] },
+      },
+      notActivated: {
+        type: "array",
+        description:
+          "Every conditional lens NOT activated, each with the reason. Together with " +
+          "`conditional` this must cover all 12.",
+        items: {
+          type: "object",
+          properties: {
+            lens: { type: "string", enum: [...CONDITIONAL_LENSES] },
+            reason: {
+              type: "string",
+              description: "Why this project does not activate it. Concrete, one line.",
+            },
+          },
+          required: ["lens", "reason"],
+        },
+      },
+    },
+    required: ["conditional", "notActivated"],
+  },
+};
+
+export function handleRecordActivatedLenses(
+  engine: StateEngine,
+  args: { conditional: string[]; notActivated: { lens: string; reason: string }[] }
+): string {
+  const r = engine.recordActivatedLenses(args.conditional ?? [], args.notActivated ?? []);
+  if (!r.ok) {
+    return JSON.stringify({ success: false, error: r.error.message });
+  }
+  return JSON.stringify({
+    success: true,
+    iteration: r.value.iteration,
+    againstVersion: r.value.againstVersion,
+    activated: r.value.conditional,
+    notActivatedCount: r.value.notActivated.length,
+    recordedAt: r.value.recordedAt,
+    _nextAction:
+      "Lens set on record for this iteration. Now apply EVERY universal lens plus these conditional ones " +
+      "to EVERY module, then write the findings table to specs/design/coverage-matrix.md — head it with " +
+      `## Iteração ${r.value.iteration} — V(${r.value.againstVersion}).`,
+  });
 }

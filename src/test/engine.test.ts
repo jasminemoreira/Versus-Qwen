@@ -12,6 +12,18 @@ import { validateSafeguard } from "../rules/safeguards";
 import { detectOutcome } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
 import { specEntryValue } from "../state/types";
+import { CONDITIONAL_LENSES, canonicalLens } from "../rules/lenses";
+
+/** Records a complete, valid lens declaration for the current critique iteration.
+ *  Activates the given conditional lenses (default: Mechanical Engineering, used by
+ *  the MEC- fixtures); the rest are not-activated with a reason. */
+function declareLenses(activated: string[] = ["Mechanical Engineering"]): void {
+  const notActivated = CONDITIONAL_LENSES
+    .filter((l) => !activated.includes(l))
+    .map((lens) => ({ lens, reason: "no project signal for this lens in the test fixture" }));
+  const r = engine.recordActivatedLenses(activated, notActivated);
+  assert.ok(r.ok, "declareLenses must succeed" + (r.ok ? "" : ": " + r.error.message));
+}
 
 function createTempWorkspace(): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "versus-test-"));
@@ -288,6 +300,7 @@ test("loop Phase 2↔3 allowed", () => {
   // Phase 2 → 3
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   writeCoverageMatrix(workspace);
+  declareLenses();
   const to3 = engine.advancePhase(3);
   assert.strictEqual(to3.ok, true);
 
@@ -472,6 +485,7 @@ function toPhase5() {
   engine.updateScore(95, makeFullBreakdown(95));
   writeArchitectureDoc(workspace); // Phase 1→2 gate requires the persisted artifact
   writeCoverageMatrix(workspace);  // Phase 2→3 gate requires the persisted artifact
+  declareLenses();                 // Phase 2→3 gate requires structured lens activation
   for (let p = 0; p <= 4; p++) {
     for (const c of engine.getExitCriteriaWithDefs(p)) engine.markExitCriterion(p, c.criterion, true);
     engine.advancePhase(p + 1);
@@ -662,6 +676,7 @@ function toPhase2Stamped() {
   for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
   writeArchitectureDoc(workspace);
   engine.advancePhase(2);
+  declareLenses();
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   assert.strictEqual(engine.getPhaseState()!.currentPhase, 2);
 }
@@ -882,7 +897,8 @@ test("Phase 2↔3 loop-back resets activated_lenses_recorded and bumps the itera
   engine.advancePhase(1);
   for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
   engine.advancePhase(2);
-  // Iteration 1: declare lenses, advance to Phase 3.
+  // Iteration 1: declare lenses (structured), advance to Phase 3.
+  declareLenses();
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   const lensMet = () => engine.getExitCriteriaWithDefs(2).find((c) => c.criterion === "activated_lenses_recorded")!.met;
   assert.strictEqual(lensMet(), true);
@@ -914,10 +930,12 @@ test("2→3·3→2·2→3 then 3→4 BLOCKS until Phase 3 is re-answered", () =>
   engine.advancePhase(1);
   for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
   engine.advancePhase(2);
+  declareLenses();                               // iteration 1
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   engine.advancePhase(3);                       // 2→3
   for (const c of engine.getExitCriteriaWithDefs(3)) engine.markExitCriterion(3, c.criterion, true);
   engine.advancePhase(2);                        // 3→2 — resets Phase 2 AND Phase 3
+  declareLenses();                               // iteration 2 — re-declare against the new round
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   engine.advancePhase(3);                        // 2→3 again
   // Phase 3 NOT re-answered for this round → the gate to Phase 4 must block.
@@ -946,6 +964,140 @@ test("updateProjectSpec timestamps new entries and preserves legacy strings", ()
   // Value extraction works uniformly on the mixed array (what inject-context renders).
   const values = engine.getProjectSpec().stack.map(specEntryValue);
   assert.ok(values.includes("LegacyTech") && values.includes("TypeScript") && values.includes("Node 18+"));
+});
+
+console.log("\n=== Structured Lenses + Lens-Column Gate Tests (v0.10.0) ===\n");
+
+function allNotActivated(except: string[] = []): { lens: string; reason: string }[] {
+  return CONDITIONAL_LENSES.filter((l) => !except.includes(l)).map((lens) => ({ lens, reason: "no project signal" }));
+}
+
+/** Reach Phase 2 with criteria stamped but NO structured lens declaration. */
+function toPhase2NoLenses() {
+  engine.initProject("Test", "Desc");
+  engine.updateScore(95, makeFullBreakdown(95));
+  writeArchitectureDoc(workspace);
+  for (const c of engine.getExitCriteriaWithDefs(0)) engine.markExitCriterion(0, c.criterion, true);
+  engine.advancePhase(1);
+  for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
+  engine.advancePhase(2);
+  for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
+}
+
+// --- Block 1: record_activated_lenses validation ---
+
+test("record_activated_lenses rejects a translation (Segurança)", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses(["Segurança"], allNotActivated());
+  assert.strictEqual(r.ok, false);
+});
+
+test("record_activated_lenses rejects a universal lens passed as conditional", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses(["Security"], allNotActivated());
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && /UNIVERSAL/.test(r.error.message));
+});
+
+test("record_activated_lenses rejects an unaccounted-for conditional lens", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses([], allNotActivated(["Resilience"]));
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && /unaccounted/.test(r.error.message));
+});
+
+test("record_activated_lenses rejects not-activated without a reason", () => {
+  engine.initProject("T", "D");
+  const notAct = CONDITIONAL_LENSES.map((lens, i) => ({ lens, reason: i === 0 ? "" : "no signal" }));
+  const r = engine.recordActivatedLenses([], notAct);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && /without a reason/.test(r.error.message));
+});
+
+test("record_activated_lenses rejects a lens both activated and not-activated", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses(["Resilience"], allNotActivated());  // notActivated also has Resilience
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && /BOTH activated and not-activated/.test(r.error.message));
+});
+
+test("record_activated_lenses rejects a duplicate in conditional", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses(["Resilience", "Resilience"], allNotActivated(["Resilience"]));
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && /twice as activated/.test(r.error.message));
+});
+
+test("record_activated_lenses persists as an array with iteration and againstVersion", () => {
+  engine.initProject("T", "D");
+  const r = engine.recordActivatedLenses(["Resilience"], allNotActivated(["Resilience"]));
+  assert.ok(r.ok);
+  const acts = engine.getPhaseState()!.activatedLenses!;
+  assert.strictEqual(acts.length, 1);
+  assert.strictEqual(acts[0].iteration, 1);
+  assert.ok(acts[0].againstVersion >= 1);
+  assert.deepStrictEqual(acts[0].conditional, ["Resilience"]);
+  assert.strictEqual(acts[0].notActivated.length, 11);
+});
+
+test("legacy free-text lenses honoured only when stateVersion is absent", () => {
+  engine.initProject("T", "D");                       // stateVersion = 1
+  engine.recordDecision(2, "architecture", "ACTIVATED LENSES: Resilience");
+  assert.strictEqual(engine.lensesRecorded(), false, "new project: prose does NOT satisfy the structured gate");
+  delete (engine.getPhaseState() as unknown as { stateVersion?: number }).stateVersion;
+  assert.strictEqual(engine.lensesRecorded(), true, "legacy project (no stateVersion): prose is honoured");
+});
+
+// --- Block 2: coverage-matrix lens-column gate (2→3) ---
+
+test("2→3 BLOCKS on the lenses-recorded gate when nothing is declared", () => {
+  toPhase2NoLenses();
+  writeCoverageMatrix(workspace);                     // universal-lens findings
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("lens activation is not on record")));
+});
+
+test("2→3 lens gate: a truncated canonical name (Sustainability) BLOCKS — the T21 case", () => {
+  toPhase2NoLenses();
+  declareLenses(["Sustainability / Proportionality"]);
+  fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| S-01 | auth | Sustainability | 🟡 | truncated lens name, not the canonical one |\n");
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false);
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("S-01") && m.includes("not one of the 19")));
+});
+
+test("2→3 lens gate: full canonical name passes; 'UI / UX' == 'UI/UX'; NENHUMA passes", () => {
+  toPhase2NoLenses();
+  declareLenses(["Sustainability / Proportionality", "UI/UX"]);
+  fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| S-01 | auth | Sustainability / Proportionality | 🟡 | proportionate resource use question |\n" +
+    "| U-02 | auth | UI / UX | 🟡 | spacing around the slash is tolerated |\n" +
+    "| N-03 | auth | NENHUMA | 🟢 | a finding that fit no lens |\n");
+  assert.strictEqual(engine.advancePhase(3).ok, true);
+});
+
+test("2→3 lens gate (T14): a conditional lens is anachronistic in a round that did not declare it", () => {
+  toPhase2NoLenses();
+  declareLenses([]);                                  // iteration 1 activates nothing
+  fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| MEC-01 | auth | Mechanical Engineering | 🟡 | MEC not declared for iteration 1 |\n");
+  const r = engine.advancePhase(3);
+  assert.strictEqual(r.ok, false, "MEC in iteration 1 is anachronistic — it wasn't declared for that round");
+  assert.ok(!r.ok && r.error.missingCriteria.some((m) => m.includes("MEC-01") && m.includes("not among the conditional lenses declared")));
+});
+
+test("2→3 lens gate (T14): a conditional lens is legitimate in the round that declared it", () => {
+  toPhase2NoLenses();
+  declareLenses(["Mechanical Engineering"]);          // iteration 1 declares MEC
+  fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| MEC-01 | auth | Mechanical Engineering | 🟡 | MEC declared for iteration 1 |\n");
+  assert.strictEqual(engine.advancePhase(3).ok, true);
 });
 
 console.log("\n=== All tests completed ===\n");

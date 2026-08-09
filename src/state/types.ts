@@ -15,10 +15,25 @@ export interface PhaseState {
   loopCounter: LoopCounter;
   /** Last test run the test-outcome hook witnessed. Gates tests_passing (S4). */
   lastTestOutcome?: { outcome: "pass" | "fail"; phase: number; at: string };
+  /** Phase 2 lens declarations — one entry per critique iteration (2↔3 loop). */
+  activatedLenses?: LensActivation[];
+  /** Schema version stamped at init. Its ABSENCE marks a pre-structured-lenses
+   *  project, the only case where free-text lens declarations are still honoured. */
+  stateVersion?: number;
   lastPhaseStateCheck?: string;  // ISO timestamp — gateway guard for smaller models
   createdAt: string;             // ISO timestamp
   updatedAt: string;
   history: PhaseTransition[];    // transition log
+}
+
+/** Structured Phase 2 lens activation — one per critique iteration. */
+export interface LensActivation {
+  universal: string[];                                  // the 7, always
+  conditional: string[];                                // the subset activated this iteration
+  notActivated: { lens: string; reason: string }[];     // the rest, each with a reason
+  iteration: number;                                    // critique iteration (1 = first Phase 2 pass)
+  againstVersion: number;                               // architecture version it was decided against
+  recordedAt: string;                                   // ISO timestamp
 }
 
 /**
@@ -146,6 +161,8 @@ export function createDefaultState(name: string, description: string): PhaseStat
       { id: "S7", status: "ok" },
     ],
     loopCounter: { pattern: "", count: 0, firstSeen: "", lastSeen: "" },
+    activatedLenses: [],
+    stateVersion: 1,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     history: [],

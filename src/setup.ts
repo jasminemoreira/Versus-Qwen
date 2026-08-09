@@ -84,6 +84,7 @@ const AUTO_APPROVED_PERMISSIONS = [
   "mcp__versus-qwen__advance_phase",
   "mcp__versus-qwen__start_iteration",
   "mcp__versus-qwen__record_decision",
+  "mcp__versus-qwen__record_activated_lenses",
   "mcp__versus-qwen__update_score",
   "mcp__versus-qwen__mark_exit_criterion",
   "mcp__versus-qwen__check_safeguard",

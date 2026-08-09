@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0] - 2026-08-09
+
+### Added
+- **Structured lens activation + coverage-matrix lens-column gate (tracks Versus Claude v0.14.0).** The 19 lenses were prose inside the Phase 2 guidance table, so nothing validated a lens name — a session could write `Segurança`, `SEG` or `Security` and every one passed (v0.12.1 only *instructed* the canonical name). In T21, four findings carried `Sustainability` instead of the canonical `Sustainability / Proportionality` and nothing caught it. Two composing blocks:
+  - **Block 1 — declaration as validated state.** New `src/rules/lenses.ts` holds the 19 lenses as data (`UNIVERSAL_LENSES` ×7, `CONDITIONAL_LENSES` ×12, `canonicalLens()` — tolerant of case and spacing around `/`, but not translations or abbreviations). New MCP tool `record_activated_lenses(conditional, notActivated)` replaces the free-text declaration: its enum accepts only the 12 conditional names, all 12 must be accounted for (activated, or not-activated with a non-empty reason), and it rejects — at the call — a universal passed as conditional, a duplicate, a lens both activated and not-activated, and a not-activated lens with no reason. Stored in `state.activatedLenses` as **one `LensActivation` entry per critique iteration** (array, not accumulated), stamped with `iteration` (derived from `history` entries into Phase 2, not the phase-resetting `currentIteration`) and `againstVersion` (count of `## V(N)` sections). The `activated_lenses_recorded` criterion gained `verify: "lenses-recorded"`: `2→3` blocks until a record exists **for the current iteration**, so each loop-back re-declares. Legacy free-text (`ACTIVATED LENSES`/`LENTES ATIVADAS`) is honoured only when `state.stateVersion` is absent — `init_project` now stamps `stateVersion: 1`, so on new projects the structured record is mandatory.
+  - **Block 2 — lens-column gate (2→3).** Every finding's `lens` (3rd cell) must be a canonical name or the literal `NENHUMA`; a conditional lens must have been declared for that finding's iteration (from its `## Iteração N` header), matched against **that round's** declared set — never the current-only set, and degrading to the union only when the iteration can't be resolved (the v0.13.0 module-gate lesson). `Sustainability` blocks and names the row (the T21 fix); `Sustainability / Proportionality` and `UI / UX`≡`UI/UX` pass. Runs alongside the module cross-gate; skips (2.2) when nothing is declared.
+- Phase 2 guidance rewritten to STEP 1 (`record_activated_lenses`, re-declare each round) and the lens-column gate; the `inject-context` P2 warning points at the structured tool. 13 new tests (78 total).
+
+### Notes
+- **Data consequence (batch side):** the T21 slot, which ran the motivating case under the old un-validated behavior, is discarded (as on Claude). Protocol note, not extension behavior.
+
 ## [0.9.1] - 2026-08-06
 
 ### Fixed

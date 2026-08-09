@@ -71,10 +71,10 @@ function main() {
       .find((c) => c.criterion === "activated_lenses_recorded")?.met;
     if (!lensMet) {
       lines.push(
-        `⚠ P2 lens declaration required for iteration ${state.currentIteration}: call ` +
-        `record_decision(category='architecture', content='ACTIVATED LENSES — iteração ${state.currentIteration}, contra V(${state.currentIteration}): [list]. NOT ACTIVATED: [lens — reason]') ` +
-        `then mark_exit_criterion(phase=2, criterion='activated_lenses_recorded', met=true) BEFORE applying any lens. ` +
-        `On a 2↔3 loop-back this resets — re-declare against the new architecture version.`
+        `⚠ P2 STEP 1: lens activation not on record for this critique iteration. Call ` +
+        `record_activated_lenses(conditional=[...], notActivated=[{lens, reason}, ...]) — the structured tool — ` +
+        `covering ALL 12 conditional lenses (activated, or not-activated with a reason) BEFORE applying any lens. ` +
+        `Then write the matrix headed '## Iteração N — V(N)'. On a 2↔3 loop-back this resets — re-declare against the new architecture version.`
       );
     }
   }
