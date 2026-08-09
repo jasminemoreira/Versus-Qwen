@@ -705,6 +705,8 @@ test("a trivial artifact does not count as persisted", () => {
   fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"), "| |\n");
   const r = engine.advancePhase(3);
   assert.strictEqual(r.ok, false, "empty/near-empty file must not satisfy the gate");
+  if (r.ok) return;
+  assert.ok(r.error.missingCriteria.some((m) => m.includes("coverage-matrix.md") && m.includes("missing or empty")), "block must name the artifact and the reason");
 });
 
 test("a severity-only grid (no per-finding ids) BLOCKS advance", () => {
@@ -729,7 +731,9 @@ test("a matrix that only echoes module ids (M-) has no findings, BLOCKS", () => 
     "| M-01 | auth | — | — | echoed from architecture, not a finding |\n" +
     "| M-02 | ui | — | — | echoed from architecture, not a finding |\n"
   );
-  assert.strictEqual(engine.advancePhase(3).ok, false, "a module-echo matrix has zero findings and must block");
+  const rEcho = engine.advancePhase(3);
+  assert.strictEqual(rEcho.ok, false, "a module-echo matrix has zero findings and must block");
+  if (!rEcho.ok) assert.ok(rEcho.error.missingCriteria.some((m) => m.includes("structured form")), "block must explain the missing findings form");
 
   // A real finding with a non-M prefix (incl. Mechanical Engineering's MEC-) unblocks.
   // Module must exist in the architecture (auth) — the cross-gate checks that too.
@@ -853,7 +857,9 @@ test("a witnessed FAIL does not satisfy tests_passing", () => {
   toPhase6();
   for (const c of engine.getExitCriteriaWithDefs(6)) engine.markExitCriterion(6, c.criterion, true);
   engine.recordTestOutcome("npm test", true); // red run
-  assert.strictEqual(engine.advancePhase(7).ok, false);
+  const r = engine.advancePhase(7);
+  assert.strictEqual(r.ok, false);
+  if (!r.ok) assert.ok(r.error.missingCriteria.some((m) => m.includes("witness a passing test run")), "block must name the missing green run");
 });
 
 test("a pass witnessed in an EARLIER phase does not satisfy Phase 6", () => {
@@ -862,7 +868,9 @@ test("a pass witnessed in an EARLIER phase does not satisfy Phase 6", () => {
   for (const c of engine.getExitCriteriaWithDefs(5)) engine.markExitCriterion(5, c.criterion, true);
   engine.advancePhase(6);
   for (const c of engine.getExitCriteriaWithDefs(6)) engine.markExitCriterion(6, c.criterion, true);
-  assert.strictEqual(engine.advancePhase(7).ok, false, "the pass must be witnessed IN phase 6");
+  const rEarlier = engine.advancePhase(7);
+  assert.strictEqual(rEarlier.ok, false, "the pass must be witnessed IN phase 6");
+  if (!rEarlier.ok) assert.ok(rEarlier.error.missingCriteria.some((m) => m.includes("witness a passing test run")), "block must name the missing green run");
 });
 
 test("start_new_cycle BLOCKED until lessons.md is persisted", () => {
@@ -939,7 +947,9 @@ test("2→3·3→2·2→3 then 3→4 BLOCKS until Phase 3 is re-answered", () =>
   for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
   engine.advancePhase(3);                        // 2→3 again
   // Phase 3 NOT re-answered for this round → the gate to Phase 4 must block.
-  assert.strictEqual(engine.advancePhase(4).ok, false, "3→4 blocked until Phase 3 is re-answered for the new round");
+  const r34 = engine.advancePhase(4);
+  assert.strictEqual(r34.ok, false, "3→4 blocked until Phase 3 is re-answered for the new round");
+  if (!r34.ok) assert.ok(r34.error.missingCriteria.some((m) => m.includes("Phase 3")), "block must name the unmet Phase 3 criteria");
   for (const c of engine.getExitCriteriaWithDefs(3)) engine.markExitCriterion(3, c.criterion, true);
   assert.strictEqual(engine.advancePhase(4).ok, true, "re-answering Phase 3 unblocks 3→4");
 });
@@ -990,6 +1000,7 @@ test("record_activated_lenses rejects a translation (Segurança)", () => {
   engine.initProject("T", "D");
   const r = engine.recordActivatedLenses(["Segurança"], allNotActivated());
   assert.strictEqual(r.ok, false);
+  if (!r.ok) assert.ok(/not one of the 12/.test(r.error.message), "rejection must explain it is not a canonical conditional lens");
 });
 
 test("record_activated_lenses rejects a universal lens passed as conditional", () => {
