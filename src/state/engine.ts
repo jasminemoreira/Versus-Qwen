@@ -18,6 +18,7 @@ import {
   specEntryValue,
   ProjectSpec,
   LensActivation,
+  TestProvenance,
 } from "./types";
 import { CONDITIONAL_LENSES, UNIVERSAL_LENSES, canonicalLens } from "../rules/lenses";
 import {
@@ -256,9 +257,16 @@ export class StateEngine {
     // invented one blocks and is named).
     const moduleDrift = from === 2 && targetPhase === 3 ? this.moduleTraceabilityErrors() : [];
 
-    // 2→3: every finding's lens column must be a canonical name (or NENHUMA), and a
-    // conditional lens must have been declared for that finding's iteration.
+    // 2→3: every finding's lens column must be a canonical name (or NENHUMA), a
+    // conditional lens must have been declared for that finding's iteration, and its
+    // severity must be one of 🔴/🟡/🟢.
     const lensDrift = from === 2 && targetPhase === 3 ? this.findingLensErrors() : [];
+
+    // 6→7: Phase 6 re-verifies what earlier phases decided survived the code (III):
+    // every critical finding, and every numbered premise, traced to a test or a reason.
+    const coverageDrift = from === 6 && targetPhase === 7
+      ? [...this.criticalCoverageErrors(), ...this.premiseCoverageErrors()]
+      : [];
 
     // Check specs/ (warning, does not block)
     const specsWarnings: string[] = [];
@@ -272,17 +280,21 @@ export class StateEngine {
       }
     }
 
-    if (!validation.valid || artifactMissing.length > 0 || moduleDrift.length > 0 || lensDrift.length > 0) {
+    if (!validation.valid || artifactMissing.length > 0 || moduleDrift.length > 0 || lensDrift.length > 0 || coverageDrift.length > 0) {
       return {
         ok: false,
         error: {
           message: `Cannot advance from Phase ${from} to Phase ${targetPhase}.`,
-          missingCriteria: [...validation.missingCriteria, ...artifactMissing, ...moduleDrift, ...lensDrift],
+          missingCriteria: [...validation.missingCriteria, ...artifactMissing, ...moduleDrift, ...lensDrift, ...coverageDrift],
           safeguardViolations: validation.safeguardViolations,
           specsWarnings,
         },
       };
     }
+
+    // Gates passed — stamp engine-authored provenance on the verify-criteria we just
+    // checked, before the transition commits (II).
+    this.stampVerificationProvenance(from);
 
     // Valid transition
     this.state.history.push({
@@ -763,6 +775,117 @@ export class StateEngine {
     );
   }
 
+  /** Reads a specs/ file, or "" if absent/unreadable. */
+  private readSpec(relPath: string): string {
+    try {
+      const full = path.join(this.specsPath, relPath);
+      return fs.existsSync(full) ? fs.readFileSync(full, "utf-8") : "";
+    } catch { return ""; }
+  }
+
+  /**
+   * Cross-gate (6→7): every critical (🔴) finding of the matrix must be traced to a
+   * test or a stated reason in specs/validation/critical-coverage.md (III.1). Phase 3
+   * resolved the criticals; this confirms the code kept them resolved. Skips when there
+   * are no criticals. Form only — whether the test truly covers it stays human.
+   */
+  private criticalCoverageErrors(): string[] {
+    const criticals = this.matrixFindings().filter((f) => f.severity.includes("🔴"));
+    if (criticals.length === 0) return [];
+    if (!this.artifactPresent("validation/critical-coverage.md")) {
+      return [
+        `[Phase 6] critical coverage: ${criticals.length} critical (🔴) finding(s) in the matrix, but ` +
+        `specs/validation/critical-coverage.md is missing or empty. For each 🔴 id, name the test that ` +
+        `covers it — or the reason there is none. Phase 3 resolved these; this confirms the code kept them resolved.`
+      ];
+    }
+    const text = this.readSpec("validation/critical-coverage.md");
+    const uncovered = criticals.filter((f) => !new RegExp(`\\b${escapeRegExp(f.id)}\\b`).test(text));
+    if (uncovered.length > 0) {
+      return [
+        `[Phase 6] critical coverage: critical finding(s) ${uncovered.map((f) => f.id).join(", ")} ` +
+        `are not referenced in specs/validation/critical-coverage.md. Each 🔴 finding must be traced to a ` +
+        `test that would catch its regression, or a stated reason there is none (e.g. the module was removed).`
+      ];
+    }
+    return [];
+  }
+
+  /**
+   * Cross-gate (6→7): every NUMBERED premise of the architecture must be traced to a
+   * test or a reason in specs/validation/premise-coverage.md (III.2). CONDITIONAL:
+   * premise ids are not a stable convention (half the corpus writes premises as prose),
+   * so the gate engages only when architecture.md HAS numbered premises — never
+   * over-blocking a prose project. Guidance nudges numbering.
+   */
+  private premiseCoverageErrors(): string[] {
+    const arch = this.readSpec("technical/architecture.md");
+    if (!arch) return [];
+    const ids = new Set<string>();
+    const re = /\b((?:P-A|A)-?\d+)\b/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(arch)) !== null) {
+      const raw = m[1].toUpperCase().replace(/^A(\d)/, "A-$1");
+      if (/^(P-A|A-)\d+$/.test(raw)) ids.add(raw);
+    }
+    if (ids.size === 0) return [];   // premises are prose here — guidance handles it, gate does not over-block
+    if (!this.artifactPresent("validation/premise-coverage.md")) {
+      return [
+        `[Phase 6] premise coverage: the architecture numbers ${ids.size} premise(s) (${[...ids].slice(0, 6).join(", ")}${ids.size > 6 ? ", …" : ""}), ` +
+        `but specs/validation/premise-coverage.md is missing or empty. For each numbered premise, name the test that ` +
+        `would FAIL if it stopped holding — or the reason there is none. Criticising a premise's plausibility in Phase 2 ` +
+        `is not the same as measuring whether it holds in the code.`
+      ];
+    }
+    const text = this.readSpec("validation/premise-coverage.md");
+    const uncovered = [...ids].filter((id) => !new RegExp(`\\b${escapeRegExp(id)}\\b`, "i").test(text));
+    if (uncovered.length > 0) {
+      return [
+        `[Phase 6] premise coverage: premise(s) ${uncovered.join(", ")} are not referenced in ` +
+        `specs/validation/premise-coverage.md. Each numbered premise needs a test that would measure it failing, ` +
+        `or a stated reason there is none.`
+      ];
+    }
+    return [];
+  }
+
+  /**
+   * Stamps engine-authored provenance onto the `verify:`-gated criteria of `phase`
+   * (II), when the transition passes. `nominal` is false when the gate was met via a
+   * degraded path — a pass not confirmed by a harness exit_code=0, or a lens record via
+   * the legacy prose fallback — so a post-mortem sees the bypass in the criterion.
+   */
+  private stampVerificationProvenance(phase: number): void {
+    if (!this.state) return;
+    for (const def of getExitCriteriaForPhase(phase)) {
+      if (!def.verify) continue;
+      const ec = this.state.exitCriteria.find((c) => toNum(c.phase) === phase && c.criterion === def.criterion);
+      if (!ec) continue;
+      if (def.verify === "test-pass") {
+        const t = this.state.lastTestOutcome;
+        if (!t) continue;
+        const nominal = t.source === "harness" && t.exitCode === 0;
+        ec.verifiedBy = {
+          path: "test-pass",
+          nominal,
+          at: new Date().toISOString(),
+          note: nominal ? undefined : "pass NOT confirmed by a harness exit_code=0 — classified via output markers or a non-harness source",
+          snapshot: { outcome: t.outcome, command: t.command, exitCode: t.exitCode, source: t.source, outputSha256: t.outputSha256, at: t.at },
+        };
+      } else if (def.verify === "lenses-recorded") {
+        const cur = (this.state.activatedLenses ?? []).find((a) => toNum(a.iteration) === this.critiqueIteration());
+        const nominal = !!cur;
+        ec.verifiedBy = {
+          path: "lenses-recorded",
+          nominal,
+          at: new Date().toISOString(),
+          note: nominal ? undefined : "satisfied via the legacy free-text fallback, not the structured record",
+          snapshot: cur ? { iteration: cur.iteration, againstVersion: cur.againstVersion, recordedAt: cur.recordedAt } : {},
+        };
+      }
+    }
+  }
+
   /** True when the test-outcome hook witnessed a passing run in this phase. */
   witnessedTestPass(phase: number): boolean {
     const t = this.state?.lastTestOutcome;
@@ -788,7 +911,21 @@ export class StateEngine {
         out.push(`[Phase ${phase}] ${def.criterion}: lens activation is not on record for iteration ${this.critiqueIteration()}. Call record_activated_lenses(conditional, notActivated) — the structured tool — BEFORE advancing. Marking the criterion met is not enough: without the record, which lenses were applied cannot be reconstructed after the session, and each round of the 2↔3 loop must re-declare against the new architecture.`);
       }
       if (def.verify === "test-pass" && !this.witnessedTestPass(phase)) {
-        out.push(`[Phase ${phase}] ${def.criterion}: the engine did not witness a passing test run in this phase. Run your test suite so the result is verified by the test-outcome hook (S4: never assume tests passed — execute and verify). Marking the criterion met is not enough.`);
+        const t = this.state?.lastTestOutcome;
+        // Distinguish "nothing was observed" from "observed and not a pass" (I.3).
+        const seen = t
+          ? `The last run the engine recorded was outcome="${t.outcome}"` +
+            `${t.command ? ` for \`${t.command}\`` : ""} at ${t.at}` +
+            `${toNum(t.phase) !== phase ? ` (in Phase ${t.phase}, not this phase)` : ""}` +
+            `${typeof t.exitCode === "number" ? `, exit_code=${t.exitCode}` : ""}.` +
+            (t.outcome === "unknown" ? ` "unknown" means the hook could not classify the output — check the run's output, or re-run.` : "")
+          : `The engine has recorded NO test run in this phase.`;
+        out.push(
+          `[Phase ${phase}] ${def.criterion}: no witnessed passing test run in this phase. ${seen} ` +
+          `A green run must be seen by the test-outcome hook (S4: never assume tests passed — execute and verify). ` +
+          `If the suite is green but this stays red, the run was not classified as a pass — inspect get_phase_state.lastTestOutcome. ` +
+          `Marking the criterion met is not enough.`
+        );
       }
     }
     return out;
@@ -801,20 +938,33 @@ export class StateEngine {
    * the end of the work, never a loop, so it clears the counter. Blocking is
    * decided by the caller reading getLoopCounter() BEFORE the run.
    */
-  recordTestOutcome(command: string, failed: boolean): { count: number } {
+  recordTestOutcome(
+    command: string,
+    outcome: "pass" | "fail" | "unknown",
+    provenance?: TestProvenance
+  ): { count: number } {
     if (!this.state) return { count: 0 };
 
-    // Witness the run for the tests_passing evidence gate (S4). The existing
-    // save() paths (resetLoopCounter on pass, save at the end on fail) persist it.
+    // Record what the engine actually witnessed — gates tests_passing (S4),
+    // independent of the S6 loop-counter logic below.
     this.state.lastTestOutcome = {
-      outcome: failed ? "fail" : "pass",
+      outcome,
       phase: toNum(this.state.currentPhase),
       at: new Date().toISOString(),
+      command,
+      ...(provenance ?? {}),
     };
 
-    if (!failed) {
-      this.resetLoopCounter();
+    if (outcome === "pass") {
+      this.resetLoopCounter();  // resetLoopCounter saves, persisting lastTestOutcome too
       return { count: 0 };
+    }
+
+    if (outcome === "unknown") {
+      // Unclassifiable output is not a failure: leave the S6 counter untouched, just
+      // persist the record so a stale "fail" cannot stay frozen (I.1).
+      this.save();
+      return { count: this.state.loopCounter?.count ?? 0 };
     }
 
     const normalized = this.normalizeCommandPattern(command);
@@ -975,6 +1125,10 @@ export class StateEngine {
       default: return [];
     }
   }
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Dedup projectSpec entries by their string value, preserving the first (and its timestamp). */

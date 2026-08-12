@@ -1,21 +1,55 @@
 #!/usr/bin/env node
 
-// Layer 3b: Test outcome recorder — PostToolUse (Bash)
+// Layer 3b: Test outcome recorder — PostToolUse (run_shell_command)
 // The counting half of safeguard S6. A PreToolUse hook cannot see the result of
 // a run, so the old detector counted executions and blocked the final green run
 // — the one moment where running tests is most legitimate (S4 requires it).
 // This hook counts only FAILED runs; a passing run clears the counter.
 //
-// Bias is deliberate: only positive evidence of failure counts. When the output
-// is ambiguous we record nothing — a false "failed" would push toward a bogus
-// block, a missed failure only delays a legitimate one.
+// It also witnesses the run for the tests_passing gate: the process exit code is
+// authoritative when the harness supplies one, and the reporter's prose is only
+// the FALLBACK. When output is unclassifiable it records "unknown" — never a
+// silent stale "fail".
 
+import { createHash } from "crypto";
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
+import { TestProvenance } from "../state/types";
 
 interface HookInput {
-  tool_name: string;
-  tool_input: { command?: string };
-  tool_response: string | Record<string, unknown>;
+  tool_name?: string;
+  tool_input?: { command?: string };
+  // Qwen's run_shell_command tool_response may be structured ({ stdout, stderr,
+  // exitCode/exit_code }) or a plain string. Handle both; the exit code field name
+  // varies by harness, so read either casing.
+  tool_response?: string | Record<string, unknown>;
+  tool_use_id?: string;
+  session_id?: string;
+}
+
+/** Numeric exit code from a structured tool_response, checking both casings, else undefined. */
+function extractExitCode(resp: HookInput["tool_response"]): number | undefined {
+  if (resp && typeof resp === "object") {
+    const o = resp as Record<string, unknown>;
+    for (const k of ["exit_code", "exitCode", "code", "returnCode"]) {
+      if (typeof o[k] === "number") return o[k] as number;
+    }
+  }
+  return undefined;
+}
+
+/** Text to classify — stdout+stderr when structured, the string itself otherwise.
+ *  Used only as the FALLBACK when no exit code is present. */
+function responseText(resp: HookInput["tool_response"]): string {
+  if (typeof resp === "string") return resp;
+  if (resp && typeof resp === "object") {
+    const o = resp as { stdout?: unknown; stderr?: unknown; output?: unknown };
+    if (typeof o.stdout === "string" || typeof o.stderr === "string") {
+      return `${(o.stdout as string) ?? ""}\n${(o.stderr as string) ?? ""}`;
+    }
+    if (typeof o.output === "string") return o.output;
+    return JSON.stringify(resp);
+  }
+  return "";
 }
 
 const TEST_PATTERNS = [
@@ -33,9 +67,8 @@ function isTestCommand(cmd: string): boolean {
   return TEST_PATTERNS.some((p) => p.test(cmd));
 }
 
-// Explicit "nothing failed" statements. Checked FIRST: "0 failed" and
-// "failures: 0" contain the word "failed"/"failures" and would otherwise
-// trip the failure markers below.
+// Explicit "nothing failed" statements. Checked FIRST: "0 failed" / "failures: 0"
+// contain "failed"/"failures" and would otherwise trip the failure markers.
 const CLEAN_MARKERS = [
   /\b0\s+(tests?\s+)?fail(ed|ures?|ing)?\b/i,
   /\bfail(ed|ures?)\s*[:=]\s*0\b/i,
@@ -69,12 +102,11 @@ export function detectOutcome(output: string): Outcome {
   const clean = CLEAN_MARKERS.some((p) => p.test(output));
 
   // A clean marker does not by itself mean success: "0 failed" can sit next to a
-  // crash. Only a failure marker that is NOT explained by the clean phrasing counts.
+  // crash. Only a failure marker NOT explained by the clean phrasing counts.
   const failed = FAIL_MARKERS.some((p) => p.test(output));
 
   if (failed && !clean) return "fail";
   if (failed && clean) {
-    // Both present — e.g. "0 failed" plus a stack trace. Trust the hard signals only.
     const hard = /\bexit\s+code:?\s*[1-9]\d*\b/i.test(output) || /^FAIL\b/im.test(output);
     return hard ? "fail" : "pass";
   }
@@ -110,27 +142,39 @@ function main() {
   process.stdin.on("data", (chunk) => { input += chunk; });
   process.stdin.on("end", () => {
     clearTimeout(timeoutId);
+    let command = "";
+    let isTest = false;
     try {
       const hookInput: HookInput = JSON.parse(input);
-      const command = hookInput.tool_input?.command || "";
-
-      if (!isTestCommand(command)) {
+      command = hookInput.tool_input?.command || "";
+      isTest = isTestCommand(command);
+      if (!isTest) {
         emit();
         return;
       }
 
-      const output = typeof hookInput.tool_response === "string"
-        ? hookInput.tool_response
-        : JSON.stringify(hookInput.tool_response || "");
+      const resp = hookInput.tool_response;
+      const exitCode = extractExitCode(resp);
+      const output = responseText(resp);
 
-      const outcome = detectOutcome(output);
+      // I.4: the process exit code is authoritative when present — a green suite exits
+      // 0; the reporter's prose becomes the fallback only when no exit code is supplied.
+      const outcome: Outcome =
+        typeof exitCode === "number" ? (exitCode === 0 ? "pass" : "fail") : detectOutcome(output);
 
-      if (outcome === "unknown") {
-        emit();
-        return;
-      }
+      // I.5: provenance — does not prevent forgery, makes a workaround legible.
+      const provenance: TestProvenance = {
+        source: "harness",
+        toolUseId: hookInput.tool_use_id,
+        sessionId: hookInput.session_id,
+        outputBytes: Buffer.byteLength(output, "utf-8"),
+        outputSha256: createHash("sha256").update(output).digest("hex"),
+        exitCode,
+      };
 
-      const { count } = engine.recordTestOutcome(command, outcome === "fail");
+      // I.1: an `unknown` outcome is recorded like any other — it must not leave a
+      // stale `fail` frozen. recordTestOutcome keeps it out of the S6 count.
+      const { count } = engine.recordTestOutcome(command, outcome, provenance);
 
       if (outcome === "fail" && count >= LOOP_FAILURE_THRESHOLD) {
         emit(
@@ -153,6 +197,11 @@ function main() {
 
       emit();
     } catch {
+      // I.1: if we already knew this was a test command, a malformed payload or a
+      // downstream error must not make the run vanish — record it as unknown.
+      if (isTest) {
+        try { engine.recordTestOutcome(command, "unknown", { source: "unknown" }); } catch { /* ignore */ }
+      }
       emit();
     }
   });

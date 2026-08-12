@@ -366,7 +366,11 @@ Write the architecture document to \`specs/technical/architecture.md\`. It MUST 
 | M-02 | store       | persist counters with TTL | incr(key, ttl) -> count       | —          |
 \`\`\`
 
-The \`id\` (M-01, M-02, …) exists only to make the row machine-recognizable; the **stable key across phases is the \`module\` name** in column 2. Phase 2's coverage matrix and Phase 5's implementation MUST use these exact names — if Phase 1 names a module \`rate-limiter\`, Phase 2 must not write \`quota\` and Phase 5 must not build \`limiter\`, or the coverage matrix's per-module traceability breaks and a post-mortem cannot close. Below the table, add the assumptions list.
+The \`id\` (M-01, M-02, …) exists only to make the row machine-recognizable; the **stable key across phases is the \`module\` name** in column 2. Phase 2's coverage matrix and Phase 5's implementation MUST use these exact names — if Phase 1 names a module \`rate-limiter\`, Phase 2 must not write \`quota\` and Phase 5 must not build \`limiter\`, or the coverage matrix's per-module traceability breaks and a post-mortem cannot close.
+
+**When you version the architecture (V(2), V(3), …), write each \`## V(N)\` table COMPLETE — every module, not a delta.** A version that lists only the changed modules is indistinguishable, in the text, from one that removed the rest — and the per-module traceability the matrix depends on cannot tell "still there, omitted for brevity" from "deleted". Keep the whole table in every version.
+
+Below the table, add the assumptions list — and **number each premise (\`A-1\`, \`A-2\`, …)**. Numbered premises are what let Phase 6 protect them: for each one, Phase 6 will ask for a test that would fail if the premise stopped holding (or the reason there is none). A premise written as unnumbered prose cannot be traced.
 
 \`advance_phase()\` to Phase 2 is BLOCKED until \`specs/technical/architecture.md\` exists AND contains module rows with ids (M-\\d+) — a prose doc no longer passes. As with the coverage matrix, the engine checks the FORM (there is a module table), not whether the architecture is good, nor — yet — that Phase 2 actually reused these names (that cross-check is not mechanized). That stays your and the user's judgment.
 
@@ -778,7 +782,25 @@ The content MUST use this structure:
 After each fix, record a testing decision noting: what was fixed, what still needs retesting.
 This ensures the NEXT session knows exactly what changed since the last test round.
 
-**tests_passing is engine-witnessed, not asserted (S4).** advance_phase() to Phase 7 is BLOCKED unless the test-outcome hook actually saw a GREEN run during Phase 6 — marking tests_passing met is not enough. Run the full suite here (a recognized command: npm test, jest, pytest, cargo test, go test, …) and let it pass. If you switched sessions/models at the P4→P5 point, run the suite again in THIS session so the engine witnesses it. The engine checks that the run was green, not that the tests are adequate — coverage and meaningfulness are your and the user's judgment.
+**tests_passing is engine-witnessed, not asserted (S4).** advance_phase() to Phase 7 is BLOCKED unless the test-outcome hook actually saw a GREEN run during Phase 6 — marking tests_passing met is not enough. Run the full suite here (a recognized command: npm test, jest, pytest, cargo test, go test, …) and let it pass. If you switched sessions/models at the P4→P5 point, run the suite again in THIS session so the engine witnesses it. The engine checks that the run was green, not that the tests are adequate — coverage and meaningfulness are your and the user's judgment. If the suite is green but tests_passing stays red, the run was not classified as a pass — inspect get_phase_state.lastTestOutcome (it distinguishes "no run seen" from an "unknown"/"fail" the hook recorded).
+
+### Re-verify what earlier phases DECIDED (the method does not otherwise re-check it):
+The 2↔3 loop establishes critical findings and their resolution; Phase 1 establishes premises. Nothing re-checked either survived the code — a resolved critical can be reintroduced, and a Phase-1 premise (single-thread; streaming migration) violated by the implementation. Two artifacts close that:
+
+- **\`specs/validation/critical-coverage.md\` (BLOCKS 6→7 when the matrix has 🔴 findings):** one row per 🔴 critical finding — its id, and the test that would catch its regression, OR a stated reason there is none (e.g. the module was removed in Phase 3). The engine checks every 🔴 id is referenced; whether the test truly covers it is your judgment.
+- **\`specs/validation/premise-coverage.md\` (BLOCKS 6→7 when the architecture NUMBERS its premises):** one row per numbered premise — the test that would FAIL if the premise stopped holding, or the reason there is none. "A premise is only protected when a test would measure it failing." Criticising a premise's plausibility in Phase 2 is not the same as measuring whether it holds in the built system. (If your architecture writes premises as prose, this gate stays silent — but numbering them, per Phase 1, is what lets it protect them.)
+
+### Detection power — a green suite that CANNOT fail on the defect is not protection (strong recommendation):
+Five shapes of "green but doesn't test" appeared in the batch: wrong scenario, partial coverage of the finding, a condition that is unreachable, an invariant true by construction, a test that fails without a defect. A passing test says nothing until you know it *could* fail. Where the stack has a mutation-testing tool, run it on the modules that address criticals. Where it does not, argue detection power by hand: for each critical, state the mutation that would make its test fail. Recommendation, not a gate.
+
+### Four practices that paid off in the batch (adopt them — the agents already reach for them):
+1. **Measure by stage before optimizing.** The performance guess was wrong in all four projects that guessed (the bottleneck was fsync at 37 ms/commit, not parsing). Profile, then optimize the measured hot spot.
+2. **Micro-check by RUNNING, not reading.** Defects surface by executing the module, not by re-reading it.
+3. **Mutation testing** where available — see detection power above.
+4. **Derive the test map from the specs, not the code.** A test written from the code re-asserts the code; one written from the spec can catch the code — and it also catches errors in the specs.
+
+### Recording a test fix: name the SCENARIO, not just the assertion.
+When you change a test after a failure, the record must say which scenario the test now builds — not only which number/assertion moved. A fix that only swaps the expected value can turn a test into one that exercises the happy path without noticing, and the next failure looks like the same one.
 
 ### Next Step (MANDATORY when all testing is complete):
 Both automated and manual testing must be done before advancing. When both gates are ✅: call advance_phase() to move to Phase 7. Then call get_phase_guidance() and begin Phase 7 post-review immediately.`;

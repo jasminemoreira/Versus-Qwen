@@ -97,6 +97,7 @@ export function handleGetPhaseState(engine: StateEngine): string {
     decisionsCount: state.decisions.length,
     recentDecisions,
     safeguards: state.safeguards.map((s) => ({ id: s.id, status: s.status })),
+    lastTestOutcome: state.lastTestOutcome ?? null,
     updatedAt: state.updatedAt,
   };
 

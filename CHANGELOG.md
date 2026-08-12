@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0] - 2026-08-09
+
+### Added / Changed (post-batch corrections, tracks Versus Claude v0.15.0 → v0.16.2)
+- **Test-outcome integrity (Part I).** `recordTestOutcome(command, outcome, provenance?)` now takes `"pass"|"fail"|"unknown"` instead of a boolean: an `unknown` run is *recorded* (so a stale `fail` cannot stay frozen) but does not satisfy the gate and does not count toward S6. The `test-outcome` hook classifies by the process **exit code** when the harness supplies one (0 = pass), falling back to output markers only otherwise, and stamps provenance (`source, toolUseId, sessionId, outputSha256, outputBytes, exitCode`) — which does not prevent forgery but makes a workaround legible in a post-mortem. The hook records `unknown` on a malformed payload for a known test command. The `verify:"test-pass"` refusal now distinguishes "no run recorded in this phase" from an observed `unknown`/`fail`, quoting the recorded outcome. `get_phase_state` exposes `lastTestOutcome`.
+- **Verification provenance on the criteria (Part II).** The two `verify:`-gated criteria gain an engine-authored `verifiedBy { path, nominal, at, note?, snapshot? }`, stamped when the transition passes. `nominal:false` marks a degraded path — a pass not confirmed by a harness `exit_code=0`, or a lens record satisfied via the legacy prose fallback — so a post-mortem sees the bypass in the criterion itself.
+- **Phase 6 re-verifies what earlier phases decided (Part III).** Two new 6→7 cross-gates: `specs/validation/critical-coverage.md` must reference every 🔴 critical finding of the matrix (blocks only when there are criticals), and `specs/validation/premise-coverage.md` must reference every **numbered** architecture premise (`A-1`, `P-A8`) — conditional, engaging only when the architecture numbers its premises, so a prose project is never over-blocked. Phase 6 guidance adds detection-power (mutation) and four batch practices; Phase 1 guidance requires a complete module table per `## V(N)` and numbered premises.
+- **Lens triggers rewritten (Part V; guidance).** Nine of the twelve conditional-lens triggers reworded so the trigger is the condition the central question implies (examples demoted, substantively restrictive), correcting a measured read-error where estimators cited a narrow trigger. SUS/UI-UX/GOV keep their v0.12.9 form. This changes the lens taxonomy the paper measured (X, frozen at DOI 10.5281/zenodo.21908907); Y is the derived correction and testing it is future work — a protocol note, not a new verdict.
+
+### Notes
+- **Considered and NOT gated (Part VI):** intra-lens `duplica` (recognising duplication is the human oracle — four judges disagreed widely), fixing the lens set across iterations (activation is a function of the architecture; mandatory re-evaluation already exists), and dangling/pointer-only `duplica`, unique finding ids, iteration headers, per-lens prefixes (zero corpus occurrences). Declared limitations, not code.
+- **No batch discard.** This is instrument reinforcement + a taxonomy correction for future work; the frozen results (X) are unaffected.
+
 ## [0.10.2] - 2026-08-09
 
 ### Added

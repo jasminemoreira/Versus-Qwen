@@ -13,8 +13,20 @@ export interface PhaseState {
   exitCriteria: ExitCriterionState[];
   safeguards: SafeguardState[];
   loopCounter: LoopCounter;
-  /** Last test run the test-outcome hook witnessed. Gates tests_passing (S4). */
-  lastTestOutcome?: { outcome: "pass" | "fail"; phase: number; at: string };
+  /** Last test run the test-outcome hook witnessed. Gates tests_passing (S4).
+   *  "unknown" records an unclassifiable run so a stale "fail" cannot freeze. */
+  lastTestOutcome?: {
+    outcome: "pass" | "fail" | "unknown";
+    phase: number;
+    at: string;
+    command?: string;
+    source?: "harness" | "manual" | "unknown";
+    toolUseId?: string;
+    sessionId?: string;
+    outputSha256?: string;
+    outputBytes?: number;
+    exitCode?: number;
+  };
   /** Phase 2 lens declarations — one entry per critique iteration (2↔3 loop). */
   activatedLenses?: LensActivation[];
   /** Schema version stamped at init. Its ABSENCE marks a pre-structured-lenses
@@ -24,6 +36,17 @@ export interface PhaseState {
   createdAt: string;             // ISO timestamp
   updatedAt: string;
   history: PhaseTransition[];    // transition log
+}
+
+/** Provenance for a witnessed test run (I.5) — does not prevent forgery, makes a
+ *  workaround legible in a post-mortem. */
+export interface TestProvenance {
+  source?: "harness" | "manual" | "unknown";
+  toolUseId?: string;
+  sessionId?: string;
+  outputSha256?: string;
+  outputBytes?: number;
+  exitCode?: number;
 }
 
 /** Structured Phase 2 lens activation — one per critique iteration. */
@@ -98,6 +121,18 @@ export interface ExitCriterionState {
   criterion: string;
   met: boolean;
   details?: string;
+  /** Engine-authored provenance for a `verify:`-gated criterion (II): HOW the gate was
+   *  satisfied and whether the path was nominal. Written by the engine when the
+   *  transition passes — not self-reported — so a post-mortem sees a degraded path
+   *  (hook not nominal, legacy fallback) even if the agent logged nothing. Only the two
+   *  verify-criteria carry it. */
+  verifiedBy?: {
+    path: "test-pass" | "lenses-recorded";
+    nominal: boolean;                 // false = satisfied via a degraded path
+    at: string;
+    note?: string;
+    snapshot?: Record<string, unknown>;
+  };
 }
 
 export interface SafeguardState {
