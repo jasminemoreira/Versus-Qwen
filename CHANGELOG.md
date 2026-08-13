@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1] - 2026-08-09
+
+### Fixed
+- **tests_passing classification is now language-agnostic (tracks Versus Claude v0.16.3).** The v0.11.0 exit-code check (I.4) rested on a false assumption: this harness does **not** put a numeric exit code in the Bash `tool_response` — confirmed by reading real `lastTestOutcome` records (34 live projects, `source:"harness"` with sha/bytes/ids but **no `exitCode`**). So I.4 was inert and the batch passed only because jest/pytest print English that the output markers happened to match — a Portuguese or custom-format runner would have gone `unknown`. Adding per-language markers is a losing game; the only agnostic signal is the exit status. Fix: the hook now reads a sanctioned echo token, `detectExitCode()` parsing `VERSUS_TEST_EXIT=<n>` (last occurrence = final run), with precedence harness-exit → echo-token → English markers → unknown, and records `exitSource: "harness" | "echo"` in provenance. Phase 6 guidance makes the standard invocation `<test command>; echo "VERSUS_TEST_EXIT=$?"` (the shell's `$?`, language-proof; do NOT modify the runner), and the `verify:test-pass` refusal teaches it. II `nominal` is redefined to `exitCode` observed (echo or harness) and `=== 0` — otherwise it would be permanently false on this harness. 3 new tests + an end-to-end check through the bundled hook (Portuguese output + `VERSUS_TEST_EXIT=0` → pass) (95 total).
+
+### Notes
+- **Lesson recorded:** I.4 was verified against a hand-built payload, never a real one. It was caught by reading the persisted `lastTestOutcome`. Verify the real harness payload before assuming a field arrives.
+
 ## [0.11.0] - 2026-08-09
 
 ### Added / Changed (post-batch corrections, tracks Versus Claude v0.15.0 → v0.16.2)

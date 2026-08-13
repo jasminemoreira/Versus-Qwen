@@ -864,13 +864,16 @@ export class StateEngine {
       if (def.verify === "test-pass") {
         const t = this.state.lastTestOutcome;
         if (!t) continue;
-        const nominal = t.source === "harness" && t.exitCode === 0;
+        // nominal: an exit status was OBSERVED (harness or the VERSUS_TEST_EXIT echo)
+        // and was 0 — not inferred from output markers. On a harness that supplies no
+        // numeric exit code, requiring source==="harness" would make this always false.
+        const nominal = typeof t.exitCode === "number" && t.exitCode === 0;
         ec.verifiedBy = {
           path: "test-pass",
           nominal,
           at: new Date().toISOString(),
-          note: nominal ? undefined : "pass NOT confirmed by a harness exit_code=0 — classified via output markers or a non-harness source",
-          snapshot: { outcome: t.outcome, command: t.command, exitCode: t.exitCode, source: t.source, outputSha256: t.outputSha256, at: t.at },
+          note: nominal ? undefined : "pass NOT confirmed by an observed exit status (no harness exit_code and no VERSUS_TEST_EXIT echo) — classified via output markers",
+          snapshot: { outcome: t.outcome, command: t.command, exitCode: t.exitCode, exitSource: t.exitSource, source: t.source, outputSha256: t.outputSha256, at: t.at },
         };
       } else if (def.verify === "lenses-recorded") {
         const cur = (this.state.activatedLenses ?? []).find((a) => toNum(a.iteration) === this.critiqueIteration());
@@ -922,9 +925,10 @@ export class StateEngine {
           : `The engine has recorded NO test run in this phase.`;
         out.push(
           `[Phase ${phase}] ${def.criterion}: no witnessed passing test run in this phase. ${seen} ` +
-          `A green run must be seen by the test-outcome hook (S4: never assume tests passed — execute and verify). ` +
-          `If the suite is green but this stays red, the run was not classified as a pass — inspect get_phase_state.lastTestOutcome. ` +
-          `Marking the criterion met is not enough.`
+          `Run the suite so the engine reads the EXIT STATUS, not the runner's prose — append the exit echo: ` +
+          `\`<your test command>; echo "VERSUS_TEST_EXIT=$?"\` (e.g. \`npm test; echo "VERSUS_TEST_EXIT=$?"\`). ` +
+          `The engine keys on that number, so it works in any language or output format. Do NOT modify the test runner. ` +
+          `(S4: never assume tests passed — execute and verify. Marking the criterion met is not enough.)`
         );
       }
     }

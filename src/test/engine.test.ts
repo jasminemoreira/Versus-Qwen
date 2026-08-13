@@ -9,7 +9,7 @@ import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { ScoreBreakdown } from "../state/types";
 import { getCompleteGuidance } from "../rules/full-guidance";
 import { validateSafeguard } from "../rules/safeguards";
-import { detectOutcome } from "../hooks/test-outcome";
+import { detectOutcome, detectExitCode } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
 import { specEntryValue } from "../state/types";
 import { CONDITIONAL_LENSES, canonicalLens, UNIVERSAL_LENS_DEFS, CONDITIONAL_LENS_DEFS } from "../rules/lenses";
@@ -1270,6 +1270,31 @@ test("verifiedBy: test-pass stamped non-nominal when the pass lacked a harness e
   assert.strictEqual(engine.advancePhase(7).ok, true);
   const ec = engine.getPhaseState()!.exitCriteria.find((c) => c.phase === 6 && c.criterion === "tests_passing");
   assert.ok(ec?.verifiedBy && ec.verifiedBy.path === "test-pass" && ec.verifiedBy.nominal === false && !!ec.verifiedBy.note, "non-harness pass → degraded path recorded");
+});
+
+test("detectExitCode: reads the VERSUS_TEST_EXIT token, last occurrence, undefined when absent", () => {
+  assert.strictEqual(detectExitCode("some output\nVERSUS_TEST_EXIT=0\n"), 0);
+  assert.strictEqual(detectExitCode("VERSUS_TEST_EXIT=1"), 1);
+  // Two runs echoed: the LAST (final run) wins.
+  assert.strictEqual(detectExitCode("VERSUS_TEST_EXIT=1\n...retry...\nVERSUS_TEST_EXIT=0"), 0);
+  assert.strictEqual(detectExitCode("Testes: 5 aprovados, 0 falharam"), undefined);
+});
+
+test("language-agnostic classification: non-English output is unknown, but the echo gives the number", () => {
+  // The hook's composition: markers first fail on non-English, the echo token decides.
+  const ptOutput = "Executando a suíte...\nTestes: 5 aprovados, 0 falharam";
+  assert.strictEqual(detectOutcome(ptOutput), "unknown", "no English markers → unknown");
+  assert.strictEqual(detectExitCode(ptOutput + '\nVERSUS_TEST_EXIT=0'), 0, "echo token classifies it green regardless of language");
+  assert.strictEqual(detectExitCode(ptOutput + '\nVERSUS_TEST_EXIT=1'), 1);
+});
+
+test("verifiedBy nominal is TRUE when an exit status was observed (echo or harness), 0", () => {
+  atPhase6Green();
+  // Re-record the green run WITH an observed exit status (as the echo path would).
+  engine.recordTestOutcome("npm test; echo \"VERSUS_TEST_EXIT=$?\"", "pass", { source: "harness", exitCode: 0, exitSource: "echo" });
+  assert.strictEqual(engine.advancePhase(7).ok, true);
+  const ec = engine.getPhaseState()!.exitCriteria.find((c) => c.phase === 6 && c.criterion === "tests_passing");
+  assert.ok(ec?.verifiedBy && ec.verifiedBy.nominal === true, "observed exit_code=0 (echo) → nominal");
 });
 
 console.log("\n=== All tests completed ===\n");

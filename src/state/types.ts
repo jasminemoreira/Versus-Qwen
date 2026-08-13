@@ -26,6 +26,7 @@ export interface PhaseState {
     outputSha256?: string;
     outputBytes?: number;
     exitCode?: number;
+    exitSource?: "harness" | "echo";
   };
   /** Phase 2 lens declarations — one entry per critique iteration (2↔3 loop). */
   activatedLenses?: LensActivation[];
@@ -47,6 +48,7 @@ export interface TestProvenance {
   outputSha256?: string;
   outputBytes?: number;
   exitCode?: number;
+  exitSource?: "harness" | "echo";
 }
 
 /** Structured Phase 2 lens activation — one per critique iteration. */

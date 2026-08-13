@@ -114,6 +114,17 @@ export function detectOutcome(output: string): Outcome {
   return "unknown";
 }
 
+/**
+ * Language-agnostic exit status from a sanctioned `echo "VERSUS_TEST_EXIT=$?"`
+ * appended to the test command. The harness here does not deliver a numeric exit
+ * code, and English-only output markers are not agnostic — the shell's `$?` is.
+ * Returns the LAST occurrence (the final run).
+ */
+export function detectExitCode(output: string): number | undefined {
+  const ms = [...output.matchAll(/VERSUS_TEST_EXIT=(\d+)/g)];
+  return ms.length ? parseInt(ms[ms.length - 1][1], 10) : undefined;
+}
+
 function emit(msg?: string): void {
   if (msg) {
     process.stdout.write(JSON.stringify({ additionalContext: msg }) + "\n");
@@ -154,11 +165,19 @@ function main() {
       }
 
       const resp = hookInput.tool_response;
-      const exitCode = extractExitCode(resp);
       const output = responseText(resp);
 
-      // I.4: the process exit code is authoritative when present — a green suite exits
-      // 0; the reporter's prose becomes the fallback only when no exit code is supplied.
+      // Exit-status precedence, most authoritative first:
+      //   1. a numeric harness exit_code (if this harness ever supplies one)
+      //   2. the sanctioned `echo "VERSUS_TEST_EXIT=$?"` token — a number, not prose,
+      //      so it works in any language (the harness here gives NO numeric exit code)
+      //   3. output markers (English only — last resort, do NOT expand per language)
+      const harnessExit = extractExitCode(resp);
+      const echoExit = detectExitCode(output);
+      const exitCode = typeof harnessExit === "number" ? harnessExit : echoExit;
+      const exitSource: TestProvenance["exitSource"] =
+        typeof harnessExit === "number" ? "harness" : typeof echoExit === "number" ? "echo" : undefined;
+
       const outcome: Outcome =
         typeof exitCode === "number" ? (exitCode === 0 ? "pass" : "fail") : detectOutcome(output);
 
@@ -170,6 +189,7 @@ function main() {
         outputBytes: Buffer.byteLength(output, "utf-8"),
         outputSha256: createHash("sha256").update(output).digest("hex"),
         exitCode,
+        exitSource,
       };
 
       // I.1: an `unknown` outcome is recorded like any other — it must not leave a
