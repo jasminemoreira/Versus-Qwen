@@ -522,8 +522,11 @@ export class StateEngine {
     try {
       const full = path.join(this.specsPath, relPath);
       if (!fs.existsSync(full)) return 0;
-      const text = fs.readFileSync(full, "utf-8");
-      return (text.match(new RegExp(pattern, "gm")) || []).length;
+      // Per line, not a global match over the whole file: a global regex can walk
+      // across a newline and swallow the start of the next line, undercounting rows
+      // that are visibly there. The function counts LINES matching pattern.
+      const re = new RegExp(pattern);
+      return fs.readFileSync(full, "utf-8").split(/\r?\n/).filter((l) => re.test(l)).length;
     } catch { return 0; }
   }
 
@@ -534,10 +537,14 @@ export class StateEngine {
     try {
       const full = path.join(this.specsPath, relPath);
       if (!fs.existsSync(full)) return out;
-      const text = fs.readFileSync(full, "utf-8");
-      const re = new RegExp(`\\|\\s*(?:${idPattern})\\s*\\|\\s*([^|]+?)\\s*\\|`, "gm");
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(text)) !== null) {
+      // Line by line, anchored. A single global regex over the whole file walks
+      // across newlines: a row whose last cell is itself an id — `depends-on`
+      // holding `M-01` — matches `| M-01 |\n|` and consumes the pipe that OPENS
+      // the next row, so that row is never seen and its module drops from the set.
+      const re = new RegExp(`^\\s*\\|\\s*(?:${idPattern})\\s*\\|\\s*([^|]+?)\\s*\\|`);
+      for (const line of fs.readFileSync(full, "utf-8").split(/\r?\n/)) {
+        const m = re.exec(line);
+        if (!m) continue;
         const v = m[1].trim().toLowerCase();
         if (v) out.add(v);
       }

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.2] - 2026-08-09
+
+### Fixed
+- **Module cross-gate no longer loses a module whose predecessor row declares a dependency.** `tableColumn2` (the 2→3 module traceability gate, from v0.9.0's Part B) ran one global regex over the whole file. Nothing stopped it crossing a newline: on a row whose last cell is itself a module id — a `depends-on` holding `M-01` — it matched `| M-01 |
+|` and consumed the pipe that OPENS the next row, so that row was never recognised and its module dropped from the extracted set. The gate then refused `advance_phase(2→3)` naming a module that IS in the architecture table (the RestaUm case: `game` cited by the matrix, present in the file, reported as drift) — an impossible-to-diagnose-from-outside failure, since editing the (correct) `architecture.md` never helps. Fixed by matching **line by line, anchored (`^`), without the `g` flag** — a markdown row never spans a newline, so nothing legitimate is lost. `countArtifactRows` had the same exposure (a global match walking past a newline undercounts rows) and now counts per line, as its doc-comment always said. Regression test: a `depends-on` cell holding a module id must not hide the next module. Corpus scan (110 files, old vs new): exactly one differed — RestaUm's architecture dropping `game` (false block, visible/safe); no coverage-matrix ended a finding row in a lone id, so no silent false-negatives.
+
+### Notes
+- **Method:** the case closed not by re-reading the project file a fifth time but by running the gate's own regex and printing the match indices — the match capturing `"
+"` was the evidence. When a gate refuses something visibly present, instrument the parser, not the artifact.
+
 ## [0.11.1] - 2026-08-09
 
 ### Fixed

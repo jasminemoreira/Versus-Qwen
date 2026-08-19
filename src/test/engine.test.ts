@@ -1297,4 +1297,26 @@ test("verifiedBy nominal is TRUE when an exit status was observed (echo or harne
   assert.ok(ec?.verifiedBy && ec.verifiedBy.nominal === true, "observed exit_code=0 (echo) → nominal");
 });
 
+test("a dependency cell holding a module id does not hide the next module (tableColumn2)", () => {
+  engine.initProject("Test", "Desc");
+  engine.updateScore(95, makeFullBreakdown(95));
+  // Architecture where depends-on cells hold module ids — the bug trigger.
+  fs.writeFileSync(path.join(workspace, "specs", "technical", "architecture.md"),
+    "# Architecture\n\n| id | module | responsibility | interface | depends-on |\n|--|--|--|--|--|\n" +
+    "| M-01 | board | holds the board state for the round | get()->State | — |\n" +
+    "| M-02 | ui | renders the board to the screen here | render()->DOM | M-01 |\n" +
+    "| M-03 | game | the game loop and rules engine now | tick()->void | M-01, M-02 |\n");
+  for (const c of engine.getExitCriteriaWithDefs(0)) engine.markExitCriterion(0, c.criterion, true);
+  engine.advancePhase(1);
+  for (const c of engine.getExitCriteriaWithDefs(1)) engine.markExitCriterion(1, c.criterion, true);
+  engine.advancePhase(2);
+  declareLenses([]);
+  for (const c of engine.getExitCriteriaWithDefs(2)) engine.markExitCriterion(2, c.criterion, true);
+  // A finding on `game` — the module the old global regex dropped from the arch set.
+  fs.writeFileSync(path.join(workspace, "specs", "design", "coverage-matrix.md"),
+    "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
+    "| P-01 | game | Security | 🔴 | the game loop trusts client-sent moves without validation |\n");
+  assert.strictEqual(engine.advancePhase(3).ok, true, "game is in the architecture — a depends-on cell must not hide it");
+});
+
 console.log("\n=== All tests completed ===\n");
