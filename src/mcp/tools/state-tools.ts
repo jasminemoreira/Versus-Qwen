@@ -2,6 +2,7 @@
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
+import { validateSafeguard } from "../../rules/safeguards";
 
 export const getPhaseStateTool: Tool = {
   name: "get_phase_state",
@@ -96,7 +97,7 @@ export function handleGetPhaseState(engine: StateEngine): string {
     phase0Score: state.phase0Score,
     decisionsCount: state.decisions.length,
     recentDecisions,
-    safeguards: state.safeguards.map((s) => ({ id: s.id, status: s.status })),
+    safeguards: state.safeguards.map((s) => ({ id: s.id, status: validateSafeguard(s.id, state).status })),
     lastTestOutcome: state.lastTestOutcome ?? null,
     updatedAt: state.updatedAt,
   };

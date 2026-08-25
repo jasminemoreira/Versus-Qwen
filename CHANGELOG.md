@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.3] - 2026-08-09
+
+### Fixed
+- **Live safeguard panel (display only; tracks Versus Claude v0.16.5).** The sidebar and `get_phase_state` read the cached `state.safeguards[].status`, which starts all `ok` and is only ever updated when the agent calls `check_all_safeguards` (guidance fires it once, in Phase 4). But `advance_phase` validates safeguards to decide a block without writing the statuses, and `recordTestOutcome`/the loop-detector do not either — so the panel was a frozen snapshot: S6 could be blocking runs while the display stayed green. Enforcement was always real; only the display lagged. Both surfaces now derive status at read time via `validateSafeguard(id, state)` instead of the cached field. No engine or gate change. Regression test: after S6 reaches its failure threshold, the cached field is still `ok` while `get_phase_state` reports `violated`.
+
+### Notes
+- By design only S0 and S6 ever reach `violated`; S1/S5/S7 are `warning`; S2/S3/S4 are behavioural (always `ok`). A mostly-green panel is legitimate — the fix is that the two that can turn red now show it when they do.
+
 ## [0.11.2] - 2026-08-09
 
 ### Fixed

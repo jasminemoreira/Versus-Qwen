@@ -13,6 +13,7 @@ import { detectOutcome, detectExitCode } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
 import { specEntryValue } from "../state/types";
 import { CONDITIONAL_LENSES, canonicalLens, UNIVERSAL_LENS_DEFS, CONDITIONAL_LENS_DEFS } from "../rules/lenses";
+import { handleGetPhaseState } from "../mcp/tools/state-tools";
 
 /** Records a complete, valid lens declaration for the current critique iteration.
  *  Activates the given conditional lenses (default: Mechanical Engineering, used by
@@ -1317,6 +1318,16 @@ test("a dependency cell holding a module id does not hide the next module (table
     "# CM\n\n## Iteração 1 — V(1)\n\n| id | module | lens | severity | description |\n|--|--|--|--|--|\n" +
     "| P-01 | game | Security | 🔴 | the game loop trusts client-sent moves without validation |\n");
   assert.strictEqual(engine.advancePhase(3).ok, true, "game is in the architecture — a depends-on cell must not hide it");
+});
+
+test("get_phase_state reports safeguards LIVE, not the cached (stale) status", () => {
+  toPhase5();
+  for (let i = 0; i < LOOP_FAILURE_THRESHOLD; i++) engine.recordTestOutcome("npm test", "fail");
+  const cached = engine.getPhaseState()!.safeguards.find((s) => s.id === "S6")!;
+  assert.strictEqual(cached.status, "ok", "the cached field is stale (only check_all_safeguards writes it)");
+  const out = JSON.parse(handleGetPhaseState(engine));
+  const s6 = out.safeguards.find((s: { id: string; status: string }) => s.id === "S6");
+  assert.strictEqual(s6.status, "violated", "get_phase_state reflects the live S6 block");
 });
 
 console.log("\n=== All tests completed ===\n");
