@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.4] - 2026-09-03
+
+### Fixed
+- **Read tools no longer spill to disk on a large project (display/transport integrity; tracks Versus Claude post-v0.16.5).** The host paginates a tool result over ~5700 chars to disk, and `get_phase_state` is the gateway guard the model is told to call FIRST — when it spilled, the model operated without seeing the state. Measured on a real 761 KB `state.json`: `get_phase_state` returned **50 KB** (projectSpec 39 KB, recentDecisions 11 KB) and `get_decisions` **601 KB**. The three read tools now budget their unbounded fields, staying well under the cap while the full data is injected before every message anyway:
+  - **`get_phase_state`** — `projectSpec` normalized to values (the `{value,phase,at}` stamp is analysis metadata the model never reads) with the newest 6 per list kept *independently* (a 200-entry stack cannot evict constraints), older ones dropped whole and counted (`_specNote`); `recentDecisions` content-capped at 200 chars up to a 2.2 KB budget, newest first (`_decisionsNote`); `lastTestOutcome.command` capped (heredocs). 50 KB → ~4.9 KB.
+  - **`get_decisions`** — newest first up to a 5 KB budget; a single decision larger than the whole budget is truncated inline (not spilled) with a "narrow by phase" hint. 601 KB → ~4.3 KB.
+  - **`get_phase_guidance`** — returns a POINTER to the phase's section in the already-injected context instead of repeating the ~8 KB text inline (pure redundancy — `inject-context` injects the whole methodology every message). ~8 KB → ~0.3 KB; side effect: the MCP server bundle no longer pulls `full-guidance.ts`.
+  Final sweep: all read handlers (`get_phase_state`, `get_decisions`, `get_exit_criteria`, `get_phase_guidance`, `check_all_safeguards`, `check_specs_status`) verified < 5691 over the real state.json. No gate or measurement change. 4 new tests (101 total).
+
+### Notes
+- The live-safeguard fix (Class A of this round) already shipped in 0.11.3; the cross-gate newline-walk fix in 0.11.2 — both excluded here as already done.
+
 ## [0.11.3] - 2026-08-09
 
 ### Fixed

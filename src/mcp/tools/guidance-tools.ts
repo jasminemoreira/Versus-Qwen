@@ -2,15 +2,15 @@
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
-import { getFullGuidance } from "../../rules/full-guidance";
+import { getPhaseDefinition } from "../../rules/phases";
 
 export const getPhaseGuidanceTool: Tool = {
   name: "get_phase_guidance",
   description:
-    "Returns COMPLETE instructions for the current or specified phase: global rules, " +
-    "mandatory questions, templates, protocols, checklists, and criteria. " +
-    "Call when entering each new phase to know exactly what to do. " +
-    "Complements get_phase_state which returns only the state.",
+    "Points you at the phase's instructions. The COMPLETE methodology (all phases, rules, " +
+    "templates, checklists) is injected into your context before every message — this tool no " +
+    "longer repeats it inline (the full text spilled to disk). It returns the section heading to " +
+    "read in that injected context.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -37,11 +37,13 @@ export function handleGetPhaseGuidance(engine: StateEngine, args: { phase?: numb
     return JSON.stringify({ error: `Invalid phase: ${phase}. Use 0-7.` });
   }
 
-  const guidance = getFullGuidance(phase);
-
+  const heading = `## Phase ${phase} — ${getPhaseDefinition(phase)?.name ?? "Unknown"}`;
   return JSON.stringify({
     phase,
     currentPhase: state.currentPhase,
-    guidance,
+    guidancePointer:
+      `Phase ${phase} guidance is already in your injected context this turn — read the "${heading}" ` +
+      `section and follow it. The full methodology is injected before every message; this tool no ` +
+      `longer repeats it inline (it spilled to disk).`,
   });
 }

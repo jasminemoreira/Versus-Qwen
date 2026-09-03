@@ -13,7 +13,8 @@ import { detectOutcome, detectExitCode } from "../hooks/test-outcome";
 import { ensureCommonjsPin } from "../setup";
 import { specEntryValue } from "../state/types";
 import { CONDITIONAL_LENSES, canonicalLens, UNIVERSAL_LENS_DEFS, CONDITIONAL_LENS_DEFS } from "../rules/lenses";
-import { handleGetPhaseState } from "../mcp/tools/state-tools";
+import { handleGetPhaseState, handleGetDecisions } from "../mcp/tools/state-tools";
+import { handleGetPhaseGuidance } from "../mcp/tools/guidance-tools";
 
 /** Records a complete, valid lens declaration for the current critique iteration.
  *  Activates the given conditional lenses (default: Mechanical Engineering, used by
@@ -1328,6 +1329,54 @@ test("get_phase_state reports safeguards LIVE, not the cached (stale) status", (
   const out = JSON.parse(handleGetPhaseState(engine));
   const s6 = out.safeguards.find((s: { id: string; status: string }) => s.id === "S6");
   assert.strictEqual(s6.status, "violated", "get_phase_state reflects the live S6 block");
+});
+
+const SPILL_CAP = 5691;
+
+test("get_phase_state stays under the host spill cap with a large state", () => {
+  engine.initProject("Big", "Desc");
+  const bigList = Array.from({ length: 200 }, (_, i) => `tech-${i}-${"x".repeat(60)}`);
+  engine.updateProjectSpec({ stack: bigList, constraints: bigList.map((s) => "c-" + s) });
+  for (let i = 0; i < 100; i++) engine.recordDecision(0, "scope", `decision ${i} ${"y".repeat(500)}`);
+  const out = handleGetPhaseState(engine);
+  assert.ok(out.length < SPILL_CAP, `get_phase_state must stay under ${SPILL_CAP}, got ${out.length}`);
+  const o = JSON.parse(out);
+  assert.strictEqual(o.projectSpec.stack.length, 6, "newest 6 per list");
+  assert.strictEqual(typeof o.projectSpec.stack[0], "string", "spec normalized to strings (stamp dropped)");
+  assert.ok(o._specNote && o._specNote.includes("omitted"), "note counts the omitted spec entries");
+  assert.strictEqual(o.decisionsCount, 100, "full count preserved");
+  assert.ok(o._decisionsNote && o._decisionsNote.includes("of 100"));
+});
+
+test("get_decisions stays under the cap and notes the budget", () => {
+  engine.initProject("Big", "Desc");
+  for (let i = 0; i < 100; i++) engine.recordDecision(0, "scope", `decision ${i} ${"y".repeat(500)}`);
+  const out = handleGetDecisions(engine, {});
+  assert.ok(out.length < SPILL_CAP, `got ${out.length}`);
+  const o = JSON.parse(out);
+  assert.strictEqual(o.count, 100);
+  assert.ok(o.shown < 100 && o.shown > 0);
+  assert.ok(o._note && o._note.includes("of 100"));
+});
+
+test("get_decisions truncates a single decision larger than the whole budget, does not spill", () => {
+  engine.initProject("Big", "Desc");
+  engine.recordDecision(0, "scope", "Z".repeat(20000));
+  const out = handleGetDecisions(engine, {});
+  assert.ok(out.length < SPILL_CAP, `got ${out.length}`);
+  const o = JSON.parse(out);
+  assert.strictEqual(o.shown, 1);
+  assert.ok(o.decisions[0].content.includes("[truncated"), "the oversized decision is truncated inline, not spilled");
+});
+
+test("get_phase_guidance returns a pointer, not the full inline text", () => {
+  engine.initProject("Big", "Desc");
+  const out = handleGetPhaseGuidance(engine, { phase: 2 });
+  assert.ok(out.length < SPILL_CAP, `got ${out.length}`);
+  const o = JSON.parse(out);
+  assert.ok(o.guidancePointer && o.guidancePointer.includes("injected"), "points at the injected context");
+  assert.ok(!("guidance" in o), "must not return the full guidance inline");
+  assert.ok(o.guidancePointer.includes("Phase 2"));
 });
 
 console.log("\n=== All tests completed ===\n");
