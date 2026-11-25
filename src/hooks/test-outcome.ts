@@ -14,6 +14,7 @@
 import { createHash } from "crypto";
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { TestProvenance } from "../state/types";
+import { isTestCommand, loadExtraTestPatterns } from "./shell-parse";
 
 interface HookInput {
   tool_name?: string;
@@ -50,21 +51,6 @@ function responseText(resp: HookInput["tool_response"]): string {
     return JSON.stringify(resp);
   }
   return "";
-}
-
-const TEST_PATTERNS = [
-  /\bnpm\s+test\b/i,
-  /\bnpx\s+(jest|vitest|mocha)\b/i,
-  /\bpytest\b/i,
-  /\bpython\s+-m\s+(pytest|unittest)\b/i,
-  /\bcargo\s+test\b/i,
-  /\bgo\s+test\b/i,
-  /\bnpm\s+run\s+test\b/i,
-  /\bnode\s+.*test/i,
-];
-
-function isTestCommand(cmd: string): boolean {
-  return TEST_PATTERNS.some((p) => p.test(cmd));
 }
 
 // Explicit "nothing failed" statements. Checked FIRST: "0 failed" / "failures: 0"
@@ -158,7 +144,11 @@ function main() {
     try {
       const hookInput: HookInput = JSON.parse(input);
       command = hookInput.tool_input?.command || "";
-      isTest = isTestCommand(command);
+      // Recognized per simple command, heredoc bodies and quoted text excluded — a
+      // `cat >> LOG.md <<EOF … npm test … EOF` is a write, not a run, and must not
+      // overwrite a witnessed green lastTestOutcome (the ESJUD study's advance_phase(7) failure).
+      // Only the "is it a test?" decision changed — the multi-field exit-code read is untouched.
+      isTest = isTestCommand(command, loadExtraTestPatterns(workspacePath));
       if (!isTest) {
         emit();
         return;

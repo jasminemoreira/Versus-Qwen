@@ -28,14 +28,38 @@ function pass(): void {
   process.exit(0);
 }
 
+// Total budget for all checks. Qwen kills this hook at 120s (setup.ts registers
+// `timeout: 120`, which Qwen reads as SECONDS — resolveCommandHookTimeoutMs). Stay under
+// it so a slow toolchain yields a clear "unverified" note instead of a killed hook.
+const TOTAL_BUDGET_MS = 110_000;
+const PER_CHECK_MAX_MS = 60_000;
+const startedAt = Date.now();
+
+/** Checks that ran out of time. A timeout is NOT a failure: the ESJUD study's Xcode suite
+ *  took 120–185s, the hook killed it at 60s and reported "TESTS FAILED" with no error line
+ *  in the output — two manual re-runs were green. Timeouts are reported as unverified. */
+const timedOut: string[] = [];
+
 function run(cmd: string, args: string[], cwd: string): { ok: boolean; output: string } {
+  const label = [cmd, ...args].join(" ");
+  const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+  if (remaining < 5_000) {
+    timedOut.push(`${label} (not started — time budget exhausted)`);
+    return { ok: true, output: "" };
+  }
+  const budget = Math.min(PER_CHECK_MAX_MS, remaining);
   const result = spawnSync(cmd, args, {
     cwd,
     encoding: "utf-8",
-    timeout: 60_000,
+    timeout: budget,
     shell: true,
   });
   const output = ((result.stdout || "") + (result.stderr || "")).trim();
+  const err = result.error as NodeJS.ErrnoException | undefined;
+  if (err?.code === "ETIMEDOUT" || (result.status === null && result.signal)) {
+    timedOut.push(`${label} (exceeded ${Math.round(budget / 1000)}s)`);
+    return { ok: true, output };
+  }
   return { ok: result.status === 0, output };
 }
 
@@ -182,11 +206,18 @@ function main() {
     }
 
     // --- Report ---
+    const timeoutNote = timedOut.length
+      ? `Not verified — timed out (a timeout is not a failure; run these yourself and report the result): ` +
+        `${timedOut.join("; ")}.`
+      : "";
     if (errors.length > 0) {
       block(
         `[Versus] Stop verification failed (${checksRun} checks ran). ` +
-        `Fix these errors before completing:\n\n${errors.join("\n\n")}`
+        `Fix these errors before completing:\n\n${errors.join("\n\n")}` +
+        (timeoutNote ? `\n\n${timeoutNote}` : "")
       );
+    } else if (timeoutNote) {
+      warn(`[Versus] ${timeoutNote} State this to the user.`);
     } else if (checksRun === 0) {
       warn(
         "[Versus] No type-checker, linter, or test suite detected. " +

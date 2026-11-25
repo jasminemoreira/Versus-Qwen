@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.12.0] - 2026-11-25
+
+### Fixed (seven defects from the first external study; tracks Versus Claude v0.17.0)
+The ESJUD study (Zenodo 10.5281/zenodo.22664296) was the first third-party use of Versus. It ran Versus Claude 0.16.4 through all 8 phases on macOS/Xcode, a non-npm stack. All seven defects were also present in this build.
+
+1. **Text that only MENTIONS a test command no longer counts as a run.** `isTestCommand` used to match its regexes against the whole command, so `cat >> GATES.md <<EOF … npm test … EOF` was recorded as an `unknown` run. That overwrote a green `lastTestOutcome` and broke `advance_phase(7)` in the study. `grep VERSUS_TEST_EXIT LOG.md` could even forge a pass. The new `hooks/shell-parse.ts` (copied from Claude as-is) reads commands by structure: heredoc bodies are dropped, quoting is respected, and the runner must sit at the start of a simple command (it still works behind `cd`/env/`time` and inside `bash -c`). `test-outcome` and `loop-detector` use it. Only the "is this a test?" decision changed. The Qwen multi-field exit-code read (`exit_code`/`exitCode`/`code`/`returnCode`) is untouched.
+2. **Runners outside the npm world are recognized.** Without this, S6 was blind on Xcode. The shared list now covers xcodebuild, swift, gradle/gradlew, mvn/mvnw, dotnet, flutter/dart, make, ctest, rspec, phpunit, mix, yarn/pnpm/bun/deno, uv and tox. Any other runner can be added as a regex, one per line, in `.versus/test-commands`. The Phase 6 guidance and the I.3 refusal say so.
+3. **`stop-verify` no longer reports a timeout as a failure.** It used to block with "TESTS FAILED" and no error line, and the study's Xcode suite takes 120–185 s. A timed-out check is now reported as "Not verified — timed out" in a warning, not a block. The checks run inside a 110 s total budget, under the 120 s the Stop hook is registered with (Qwen reads that value in **seconds**, confirmed in `resolveCommandHookTimeoutMs`, so it is the same budget as Claude's).
+4. **`phase-gate` covers shell writes and blocks less.**
+   - The matcher is now `edit|write_file|run_shell_command`. Before, `cat > src/App.swift <<EOF` went straight past the gate, and the study adopted shell writes as standard practice.
+   - For shell commands, the write targets (redirection, tee, `sed -i`/`perl -i`, cp/mv/install destinations) are checked against the same rules as file writes. A relative target resolves against `run_shell_command`'s own `directory` param when present (Qwen-specific), otherwise against the payload `cwd`.
+   - `isAllowedPath` used to match substrings (`src/specs/Impl.swift` passed) and is now anchored at the project root. The allowed roots are `specs/`, `.versus/` and `.qwen/`.
+   - Documentation files (`.md .markdown .txt .csv .tsv .rst .adoc .log`) are allowed anywhere. In the study, `research/` had been blocked.
+   - Anything outside the project is allowed.
+5. **`mark_exit_criterion` accepts only the current phase.** In the study, Phase 3 criteria were pre-stamped while Versus was still in Phase 2, and the G2/G3 gates landed in the same second. The check is in the handler, so the engine method stays unrestricted for tests.
+6. **Phase 4 checks S1–S5,** matching its "Safeguards S1-S5 met" criterion. S1, S3 and S5 gained Phase 4 in `applicablePhases`. S1 and S5 now carry an active "Phase 4 review" warning.
+7. **Small fixes:**
+   - `advance_phase` without `target_phase` used to come back as "Phase undefined". It now names the current phase and the next one, plus the 2↔3 loop when called from Phase 3. It does not default to the next phase.
+   - The hints (`_nextAction`, `readyToAdvanceHint`, and the 7 action calls in the guidance) now spell out `advance_phase(target_phase=N)`.
+   - The `advance_phase` `nextStep` points to the injected `## Phase N` section, consistent with the 0.11.4 `get_phase_guidance` pointer.
+   - S6 is `ok` at 0 undiagnosed failures (a permanent "warning 0/3" carried no information). S7 is behavioral (`ok`).
+
+### Qwen-specific divergences
+- Tool names are `run_shell_command`, `write_file` and `edit` (field `file_path`). The allowed config dir is `.qwen/` instead of `.claude/`.
+- One extra test covers the `directory` param of `run_shell_command`. That makes 12 new tests, **113 total**.
+
+### Verified end to end against `out/bundle/*.js`
+These were run with Qwen-shaped payloads:
+
+| Case | Result |
+|---|---|
+| Green run, then a heredoc that mentions `npm test` | `lastTestOutcome` stays `pass` |
+| `xcodebuild test …` with `VERSUS_TEST_EXIT=65` | `fail` |
+| Phase 2, shell write `cat > src/App.swift` | deny |
+| Phase 2, `write_file research/LOG.md` | allow |
+| Phase 2, `edit src/specs/Impl.swift` | deny |
+| `"test": "sleep 75"` through `stop-verify` | timeout warning, exit 0, no block |
+
+### Out of scope (same as Claude)
+- An evidence gate for the Phase 5 Scope Inventory remains an open decision.
+
 ## [0.11.4] - 2026-09-03
 
 ### Fixed

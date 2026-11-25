@@ -935,6 +935,7 @@ export class StateEngine {
           `Run the suite so the engine reads the EXIT STATUS, not the runner's prose — append the exit echo: ` +
           `\`<your test command>; echo "VERSUS_TEST_EXIT=$?"\` (e.g. \`npm test; echo "VERSUS_TEST_EXIT=$?"\`). ` +
           `The engine keys on that number, so it works in any language or output format. Do NOT modify the test runner. ` +
+          `If the engine does not see your runner as a test command at all, add a regex for it to \`.versus/test-commands\` (one per line). ` +
           `(S4: never assume tests passed — execute and verify. Marking the criterion met is not enough.)`
         );
       }

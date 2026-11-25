@@ -8,27 +8,13 @@
 // Safeguard S6: "STOP if debugging by trial-and-error instead of naming a cause"
 
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
+import { isTestCommand, loadExtraTestPatterns } from "./shell-parse";
 
 interface HookInput {
   tool_name: string;
   tool_input: {
     command?: string;
   };
-}
-
-const TEST_PATTERNS = [
-  /\bnpm\s+test\b/i,
-  /\bnpx\s+(jest|vitest|mocha)\b/i,
-  /\bpytest\b/i,
-  /\bpython\s+-m\s+(pytest|unittest)\b/i,
-  /\bcargo\s+test\b/i,
-  /\bgo\s+test\b/i,
-  /\bnpm\s+run\s+test\b/i,
-  /\bnode\s+.*test/i,
-];
-
-function isTestCommand(cmd: string): boolean {
-  return TEST_PATTERNS.some((p) => p.test(cmd));
 }
 
 function deny(reason: string): void {
@@ -79,7 +65,7 @@ function main() {
       const hookInput: HookInput = JSON.parse(input);
       const command = hookInput.tool_input?.command || "";
 
-      if (!isTestCommand(command)) {
+      if (!isTestCommand(command, loadExtraTestPatterns(workspacePath))) {
         allow();
         return;
       }

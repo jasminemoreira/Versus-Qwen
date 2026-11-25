@@ -38,7 +38,8 @@ export const SAFEGUARD_DEFINITIONS: SafeguardDef[] = [
     id: "S1",
     name: "Anti-Bug",
     description: "Simplification never introduces bugs. Features maintained after each Phase 3.",
-    applicablePhases: [3],
+    // 4: the Phase 4 gate is "Safeguards S1-S5 met" — Phase 4 reviews what Phase 3 did.
+    applicablePhases: [3, 4],
   },
   {
     id: "S2",
@@ -50,7 +51,7 @@ export const SAFEGUARD_DEFINITIONS: SafeguardDef[] = [
     id: "S3",
     name: "Premature Convergence Cost",
     description: "Stopping early = -400% to -600% ROI. Prefer iterating when in doubt.",
-    applicablePhases: [0, 2, 3],
+    applicablePhases: [0, 2, 3, 4],
   },
   {
     id: "S4",
@@ -71,7 +72,7 @@ export const SAFEGUARD_DEFINITIONS: SafeguardDef[] = [
       "5.1 Scope belongs to the user — Phase 2-3 suggests, never decides changes. " +
       "5.2 If not requested, don't add. If useful, document as v2.0 suggestion. " +
       "5.3 Detector: 'If the user compared V(N) with Phase 0, would they say this isn't what I asked for?' If yes → scope violated.",
-    applicablePhases: [2, 3],
+    applicablePhases: [2, 3, 4],
   },
   {
     id: "S6",
@@ -145,8 +146,17 @@ function validateS0(state: PhaseState): SafeguardResult {
 }
 
 function validateS1(state: PhaseState): SafeguardResult {
+  if (state.currentPhase === 4) {
+    return {
+      id: "S1",
+      status: "warning",
+      details:
+        "Phase 4 review: confirm the Phase 3 simplifications kept every feature — compare V(N+1) " +
+        "against V(N) in specs/technical/architecture.md and name any capability that was lost.",
+    };
+  }
   if (state.currentPhase !== 3) {
-    return { id: "S1", status: "ok", details: "Not in Phase 3." };
+    return { id: "S1", status: "ok", details: "Not in Phase 3-4." };
   }
   return {
     id: "S1",
@@ -156,8 +166,17 @@ function validateS1(state: PhaseState): SafeguardResult {
 }
 
 function validateS5(state: PhaseState): SafeguardResult {
+  if (state.currentPhase === 4) {
+    return {
+      id: "S5",
+      status: "warning",
+      details:
+        "Phase 4 review: confirm the converged design is within Phase 0 scope — nothing requested was cut, " +
+        "nothing unrequested was added (5.3: would the user, comparing it with Phase 0, say this isn't what they asked for?).",
+    };
+  }
   if (state.currentPhase !== 2 && state.currentPhase !== 3) {
-    return { id: "S5", status: "ok", details: "Not in Phase 2-3." };
+    return { id: "S5", status: "ok", details: "Not in Phase 2-4." };
   }
   return {
     id: "S5",
@@ -183,9 +202,11 @@ function validateS6(state: PhaseState): SafeguardResult {
     };
   }
 
+  // "warning" only when failures are actually accumulating — a permanent warning at 0/3
+  // carried no information (the ESJUD study read "S6 warning 0/3" for the whole of Phases 5-6).
   return {
     id: "S6",
-    status: "warning",
+    status: undiagnosedFailures > 0 ? "warning" : "ok",
     details:
       "Implementation active: verify Tier 1/2/3 per module. STOP if creating heuristics for problems with known solutions. " +
       `Undiagnosed consecutive test failures: ${undiagnosedFailures}/${LOOP_FAILURE_THRESHOLD}.`,
@@ -196,9 +217,11 @@ function validateS7(state: PhaseState): SafeguardResult {
   if (state.currentPhase !== 5) {
     return { id: "S7", status: "ok", details: "Not in Phase 5." };
   }
+  // Behavioral, like S2-S4: nothing measured, so nothing to warn about — a permanent
+  // "warning" made the panel look unhealthy all through Phase 5.
   return {
     id: "S7",
-    status: "warning",
-    details: "Phase 5 active: after each file, mark completed and announce progress. Don't start tangential discussions.",
+    status: "ok",
+    details: "Sequence Discipline: behavioral check — requires agent attention. After each file, mark completed and announce progress. Don't start tangential discussions.",
   };
 }

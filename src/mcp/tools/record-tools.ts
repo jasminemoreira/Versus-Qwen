@@ -142,6 +142,22 @@ export function handleMarkExitCriterion(
   args: { phase: number; criterion: string; met: boolean; details?: string }
 ): string {
   try {
+    // Only the CURRENT phase's criteria can be marked. advance_phase reads only those, so a
+    // past phase's mark is inert — and a FUTURE phase's mark is pre-stamping: the ESJUD study's
+    // G2/G3 gates landed in the same second because Phase 3 was done (and its criteria marked)
+    // while Versus still said Phase 2. The engine method stays unrestricted (tests drive it).
+    const current = engine.getPhaseState()?.currentPhase;
+    if (typeof current === "number" && args.phase !== current) {
+      return JSON.stringify({
+        success: false,
+        error:
+          `Cannot mark a Phase ${args.phase} criterion: the current phase is ${current}. ` +
+          (args.phase > current
+            ? `Criteria are marked in the phase they belong to — finish Phase ${current}, advance_phase(target_phase=${current + 1}), then mark.`
+            : `Phase ${args.phase} is already closed; only Phase ${current} criteria gate the next transition.`),
+        currentPhase: current,
+      });
+    }
     engine.markExitCriterion(args.phase, args.criterion, args.met, args.details);
     const criteria = engine.getExitCriteriaWithDefs(args.phase);
     const metCount = criteria.filter((c) => c.met).length;
@@ -160,7 +176,7 @@ export function handleMarkExitCriterion(
     if (allMet && args.phase < 7 && args.met) {
       const state = engine.getPhaseState();
       if (state && state.currentPhase === args.phase) {
-        result._nextAction = `⚠️ ALL Phase ${args.phase} exit criteria are now met. Your VERY NEXT tool call MUST be advance_phase() — no summary text, no closing prose. After advance_phase(), call get_phase_guidance() to load Phase ${args.phase + 1} instructions and continue work in the same turn.`;
+        result._nextAction = `⚠️ ALL Phase ${args.phase} exit criteria are now met. Your VERY NEXT tool call MUST be advance_phase(target_phase=${args.phase + 1}) — no summary text, no closing prose. Then follow the \"## Phase ${args.phase + 1}\" section of the methodology already injected in your context and continue work in the same turn.`;
       }
     }
 

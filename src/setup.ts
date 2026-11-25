@@ -127,7 +127,8 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
     ],
     PreToolUse: [
       {
-        matcher: "edit|write_file",
+        // run_shell_command too: shell writes (`cat > src/x <<EOF`) bypassed the gate entirely before 0.12.0
+        matcher: "edit|write_file|run_shell_command",
         hooks: [
           {
             type: "command",
