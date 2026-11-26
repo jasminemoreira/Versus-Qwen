@@ -25,6 +25,8 @@ const entryPoints = [
   { in: resolve(root, "src", "hooks", "stop-verify.ts"), out: "stop-verify" },
   { in: resolve(root, "src", "hooks", "truncation-check.ts"), out: "truncation-check" },
   { in: resolve(root, "src", "hooks", "block-destructive.ts"), out: "block-destructive" },
+  { in: resolve(root, "src", "hooks", "session-start.ts"), out: "session-start" },
+  { in: resolve(root, "src", "hooks", "pre-compact.ts"), out: "pre-compact" },
   { in: resolve(root, "src", "mcp", "server.ts"), out: "server" },
 ];
 

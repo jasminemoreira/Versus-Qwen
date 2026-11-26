@@ -94,6 +94,7 @@ const AUTO_APPROVED_PERMISSIONS = [
   "mcp__versus-qwen__get_phase_guidance",
   "mcp__versus-qwen__update_project_spec",
   "mcp__versus-qwen__start_new_cycle",
+  "mcp__versus-qwen__export_cycle",
   // General development tools (Qwen Code tool names)
   "ReadFileTool",
   "WriteFileTool",
@@ -108,7 +109,7 @@ const AUTO_APPROVED_PERMISSIONS = [
 /**
  * Generates hooks config using LOCAL project paths (.versus/).
  */
-function buildOrchestratorHooks(workspace: string): Record<string, any> {
+export function buildOrchestratorHooks(workspace: string): Record<string, any> {
   // Qwen bundles live in .versus/qwen/ so they never collide with the sibling
   // Versus extensions (Claude → .versus/*.js, Copilot → its own). state.json
   // stays at .versus/state.json, shared across tools for interchangeable work.
@@ -186,12 +187,35 @@ function buildOrchestratorHooks(workspace: string): Record<string, any> {
         ],
       },
     ],
-    // NOTE: No PreCompact / SessionStart hooks. Qwen Code only accepts hook
-    // type "command" | "http" | "function" (validateHookConfig) — the Claude
-    // Code "prompt" type is rejected and silently skipped, and it surfaces as a
-    // schema warning in the user's settings.json. Session-start and post-compact
-    // recovery is already delivered by the UserPromptSubmit inject-context hook,
-    // which re-injects full state + guidance on the first message of any session.
+    // command hooks (Qwen Code 0.28.4, read from its CLI bundle):
+    //  - SessionStart: plain stdout or hookSpecificOutput.additionalContext is appended to the
+    //    SYSTEM INSTRUCTION for the session (re-applied on chat reset); systemMessage is shown
+    //    to the user. One entry, no matcher: the script reads `source`.
+    //  - PreCompact: hookSpecificOutput.additionalContext becomes extra instructions for the
+    //    compaction summary, cut at 4,000 chars (MAX_HOOK_INSTRUCTIONS_CHARS). Plain stdout is
+    //    NOT read as context for this event.
+    // Before 0.13.0 neither was registered: the old Qwen notes (0.15.6 companion) said they
+    // could not inject context. They can now.
+    SessionStart: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: `node "${path.join(orchDir, "session-start.js")}"`,
+          },
+        ],
+      },
+    ],
+    PreCompact: [
+      {
+        hooks: [
+          {
+            type: "command",
+            command: `node "${path.join(orchDir, "pre-compact.js")}"`,
+          },
+        ],
+      },
+    ],
   };
 }
 

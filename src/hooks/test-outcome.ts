@@ -12,19 +12,23 @@
 // silent stale "fail".
 
 import { createHash } from "crypto";
+import * as path from "path";
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
 import { TestProvenance } from "../state/types";
-import { isTestCommand, loadExtraTestPatterns } from "./shell-parse";
+import { isTestCommand, loadExtraTestPatterns, testRunLocation } from "./shell-parse";
+import { postToolUseContext, writeAndExit } from "./hook-output";
 
 interface HookInput {
   tool_name?: string;
-  tool_input?: { command?: string };
+  // run_shell_command: `directory` is the optional absolute dir the command ran in
+  tool_input?: { command?: string; directory?: string };
   // Qwen's run_shell_command tool_response may be structured ({ stdout, stderr,
   // exitCode/exit_code }) or a plain string. Handle both; the exit code field name
   // varies by harness, so read either casing.
   tool_response?: string | Record<string, unknown>;
   tool_use_id?: string;
   session_id?: string;
+  cwd?: string;
 }
 
 /** Numeric exit code from a structured tool_response, checking both casings, else undefined. */
@@ -107,13 +111,15 @@ export function detectOutcome(output: string): Outcome {
  * Returns the LAST occurrence (the final run).
  */
 export function detectExitCode(output: string): number | undefined {
-  const ms = [...output.matchAll(/VERSUS_TEST_EXIT=(\d+)/g)];
+  // VERSUS_EXIT (Claude 0.19.0) is the general form, also used for declared checks; VERSUS_TEST_EXIT stays valid.
+  const ms = [...output.matchAll(/VERSUS_(?:TEST_)?EXIT=(\d+)/g)];
   return ms.length ? parseInt(ms[ms.length - 1][1], 10) : undefined;
 }
 
 function emit(msg?: string): void {
   if (msg) {
-    process.stdout.write(JSON.stringify({ additionalContext: msg }) + "\n");
+    writeAndExit(postToolUseContext(msg));   // hookSpecificOutput — the top-level form never reached the model
+    return;
   }
   process.exit(0);
 }
@@ -123,7 +129,9 @@ function main() {
   const engine = new StateEngine(workspacePath);
   const state = engine.getPhaseState();
 
-  if (!state || state.currentPhase < 5) {
+  // Every phase now: a declared check (Claude 0.19.0) can belong to any phase. The test-outcome
+  // part below still applies only from Phase 5 on.
+  if (!state) {
     emit();
     return;
   }
@@ -148,14 +156,26 @@ function main() {
       // `cat >> LOG.md <<EOF … npm test … EOF` is a write, not a run, and must not
       // overwrite a witnessed green lastTestOutcome (the ESJUD study's advance_phase(7) failure).
       // Only the "is it a test?" decision changed — the multi-field exit-code read is untouched.
-      isTest = isTestCommand(command, loadExtraTestPatterns(workspacePath));
-      if (!isTest) {
-        emit();
-        return;
-      }
+      const extra = loadExtraTestPatterns(workspacePath);
+      isTest = isTestCommand(command, extra);
 
       const resp = hookInput.tool_response;
       const output = responseText(resp);
+
+      // Declared checks: a criterion that declared a mechanical check needs the engine to SEE
+      // that command run. Matched on every shell call, in any phase. Exit status: the harness
+      // field (any of the casings extractExitCode reads) or the VERSUS_EXIT / VERSUS_TEST_EXIT echo.
+      const hx = extractExitCode(resp);
+      const hits = engine.witnessChecks(command, output, hx ?? detectExitCode(output));
+      const checkNote = hits.length
+        ? `[Versus] Declared check witnessed: ` +
+          hits.map((h) => `${h.criterion} (Phase ${h.phase}) ${h.ok ? "✅ expected result" : "❌ NOT the expected result"}`).join("; ") + "."
+        : "";
+
+      if (!isTest || state.currentPhase < 5) {
+        emit(checkNote || undefined);
+        return;
+      }
 
       // Exit-status precedence, most authoritative first:
       //   1. a numeric harness exit_code (if this harness ever supplies one)
@@ -181,10 +201,29 @@ function main() {
         exitCode,
         exitSource,
       };
+      // Where the suite actually ran. A pass from outside the project does not satisfy
+      // tests_passing (witnessedTestPass) — and the record says so. Qwen's run_shell_command
+      // can name its own `directory`; otherwise the session cwd.
+      const baseCwd = hookInput.cwd || workspacePath;
+      const cwd = hookInput.tool_input?.directory ? path.resolve(baseCwd, hookInput.tool_input.directory) : baseCwd;
+      const loc = testRunLocation(command, cwd, workspacePath, extra);
+      provenance.cwd = cwd;
+      if (loc) {
+        provenance.runDir = loc.runDir;
+        if (loc.outsideWorkspace) provenance.outsideWorkspace = true;
+      }
 
       // I.1: an `unknown` outcome is recorded like any other — it must not leave a
       // stale `fail` frozen. recordTestOutcome keeps it out of the S6 count.
       const { count } = engine.recordTestOutcome(command, outcome, provenance);
+
+      if (provenance.outsideWorkspace && outcome === "pass") {
+        emit(
+          `[Versus] This test run happened OUTSIDE the project (ran in ${provenance.runDir}). ` +
+          `It is recorded, but it does not count as a witnessed run for tests_passing: run the suite from inside the project.`
+        );
+        return;
+      }
 
       if (outcome === "fail" && count >= LOOP_FAILURE_THRESHOLD) {
         emit(
@@ -205,11 +244,11 @@ function main() {
         return;
       }
 
-      emit();
+      emit(checkNote || undefined);
     } catch {
       // I.1: if we already knew this was a test command, a malformed payload or a
       // downstream error must not make the run vanish — record it as unknown.
-      if (isTest) {
+      if (isTest && state.currentPhase >= 5) {
         try { engine.recordTestOutcome(command, "unknown", { source: "unknown" }); } catch { /* ignore */ }
       }
       emit();

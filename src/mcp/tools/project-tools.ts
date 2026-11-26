@@ -18,7 +18,13 @@ const SPECS_SUBDIRS = [
   "competitors",
 ];
 
-const BUNDLE_FILES = ["inject-context.js", "phase-gate.js", "loop-detector.js", "stop-verify.js", "truncation-check.js", "block-destructive.js", "server.js"];
+// Must match deployServer() in extension.ts and every bundle buildOrchestratorHooks() registers.
+// test-outcome.js was missing here before 0.13.0, so a project initialized through init_project
+// (before any window activation redeployed) had no test-outcome hook file.
+export const BUNDLE_FILES = [
+  "inject-context.js", "phase-gate.js", "loop-detector.js", "test-outcome.js", "stop-verify.js",
+  "truncation-check.js", "block-destructive.js", "session-start.js", "pre-compact.js", "server.js",
+];
 
 /**
  * Resolves the bundle directory.

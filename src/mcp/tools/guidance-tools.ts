@@ -3,14 +3,16 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
 import { getPhaseDefinition } from "../../rules/phases";
+import { getPhaseGuidanceText } from "../../rules/full-guidance";
 
 export const getPhaseGuidanceTool: Tool = {
   name: "get_phase_guidance",
   description:
-    "Points you at the phase's instructions. The COMPLETE methodology (all phases, rules, " +
-    "templates, checklists) is injected into your context before every message — this tool no " +
-    "longer repeats it inline (the full text spilled to disk). It returns the section heading to " +
-    "read in that injected context.",
+    "Returns the methodology guidance for the current (or specified) phase: the global rules, " +
+    "activation triggers and anti-patterns, plus that phase's full instructions. This is where " +
+    "the methodology text comes from. The per-message context carries only the state and does NOT " +
+    "include it. Call it at the start of every session, after every context compaction, and right " +
+    "after every advance_phase.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -37,13 +39,17 @@ export function handleGetPhaseGuidance(engine: StateEngine, args: { phase?: numb
     return JSON.stringify({ error: `Invalid phase: ${phase}. Use 0-7.` });
   }
 
-  const heading = `## Phase ${phase} — ${getPhaseDefinition(phase)?.name ?? "Unknown"}`;
+  // The real text again (0.13.0 of this build). 0.11.4 had turned this into a pointer to the
+  // full guidance injected every message. In Qwen Code that injection DID arrive whole (hook
+  // stdout is capped at 1 MiB), but it was appended to EVERY user message and never
+  // de-duplicated (the state part changes), so the history grew ~73K per message. The
+  // "~5,700" inline limit that motivated the pointer was measured on the VS Code chat host
+  // (LocalQwen), not here: Qwen Code inlines a tool result up to 25,000 characters
+  // (truncateToolOutputThreshold) and one phase plus the cross-cutting part fits under it.
   return JSON.stringify({
     phase,
     currentPhase: state.currentPhase,
-    guidancePointer:
-      `Phase ${phase} guidance is already in your injected context this turn — read the "${heading}" ` +
-      `section and follow it. The full methodology is injected before every message; this tool no ` +
-      `longer repeats it inline (it spilled to disk).`,
+    name: getPhaseDefinition(phase)?.name ?? "Unknown",
+    guidance: getPhaseGuidanceText(phase),
   });
 }

@@ -5,10 +5,11 @@ import { StateEngine } from "../../state/engine";
 import { validateSafeguard } from "../../rules/safeguards";
 import { specEntryValue } from "../../state/types";
 
-// The host paginates a tool result over ~5700 chars to disk — and get_phase_state is
-// the gateway guard the model is told to call first, so a spill leaves it operating
-// blind. These read tools budget their biggest fields to stay small; the full data
-// (whole spec, whole guidance) is injected before every message anyway.
+// get_phase_state is the gateway guard the model is told to call first, so a result too big
+// to inline would leave it operating blind. The ~5.7 KB inline threshold that set these
+// budgets was measured on the VS Code chat host (the LocalQwen build); Qwen Code inlines a
+// tool result up to 25,000 chars (truncateToolOutputThreshold). The budgets stay: a lean
+// snapshot costs nothing, and full decisions are one get_decisions() away.
 const SPEC_PER_LIST = 6;
 const DECISION_MAXLEN = 200;
 const DECISION_BUDGET = 2200;
@@ -134,7 +135,7 @@ export function handleGetPhaseState(engine: StateEngine): string {
     const phaseCriteria = engine.getExitCriteriaWithDefs(state.currentPhase);
     const allMet = phaseCriteria.length > 0 && phaseCriteria.every((c) => c.met);
     if (allMet) {
-      readyToAdvanceHint = `⚠️ READY TO ADVANCE — Phase ${state.currentPhase} exit criteria are ALL met but currentPhase is still ${state.currentPhase}. Your VERY NEXT tool call MUST be advance_phase(target_phase=${state.currentPhase + 1}). Do NOT write summary text. Do NOT wait for user input. Continue work into Phase ${state.currentPhase + 1} in the same turn.`;
+      readyToAdvanceHint = `⚠️ READY TO ADVANCE — Phase ${state.currentPhase} exit criteria are ALL met but currentPhase is still ${state.currentPhase}. Your VERY NEXT tool call MUST be advance_phase(target_phase=${state.currentPhase + 1}) followed by get_phase_guidance(). Do NOT write summary text. Do NOT wait for user input. Continue work into Phase ${state.currentPhase + 1} in the same turn.`;
     }
   }
 
@@ -144,6 +145,8 @@ export function handleGetPhaseState(engine: StateEngine): string {
     projectSpec: specBudgeted,
     currentPhase: state.currentPhase,
     currentIteration: state.currentIteration,
+    currentCycle: engine.currentCycle(),
+    archivedCycles: (state.cycles ?? []).map((c) => c.cycle),
     phase0Score: state.phase0Score,
     decisionsCount: state.decisions.length,
     recentDecisions,
@@ -153,7 +156,7 @@ export function handleGetPhaseState(engine: StateEngine): string {
   };
 
   if (specOmitted > 0) {
-    result._specNote = `${specOmitted} older projectSpec entr${specOmitted === 1 ? "y" : "ies"} omitted (newest ${SPEC_PER_LIST}/list shown). The full spec is injected before every message.`;
+    result._specNote = `${specOmitted} older projectSpec entr${specOmitted === 1 ? "y" : "ies"} omitted (newest ${SPEC_PER_LIST}/list shown). The per-message context also lists the spec (shortened past 600 chars per list).`;
   }
   if (state.decisions.length > shownCount || trimmed) {
     result._decisionsNote = `Showing ${shownCount} of ${state.decisions.length} decisions (newest first, content capped at ${DECISION_MAXLEN}). Use get_decisions(phase?) for more.`;
@@ -239,11 +242,32 @@ export function handleUpdateProjectSpec(
   engine: StateEngine,
   args: { stack?: string[]; outOfScope?: string[]; patterns?: string[]; constraints?: string[] }
 ): string {
+  // Snapshot by value: Qwen's getProjectSpec returns the live state object, which the update mutates.
+  const live = engine.getProjectSpec();
+  const before = {
+    stack: [...live.stack], outOfScope: [...live.outOfScope], patterns: [...live.patterns], constraints: [...live.constraints],
+  };
   engine.updateProjectSpec(args);
-  const spec = engine.getProjectSpec();
+  const after = engine.getProjectSpec();
+  // Return what CHANGED plus counts, not the whole spec. The spec only grows: on the Claude
+  // build a real project got a 40,764-char result, past this host's 25,000-char inline cap.
+  // The caller already knows what it sent. (Qwen's getProjectSpec keeps stamped entries;
+  // compare by value.)
+  const keys = ["stack", "outOfScope", "patterns", "constraints"] as const;
+  const added: Record<string, string[]> = {};
+  const counts: Record<string, number> = {};
+  for (const k of keys) {
+    const had = new Set(before[k].map(specEntryValue));
+    const n = after[k].map(specEntryValue).filter((v) => !had.has(v));
+    if (n.length) added[k] = n;
+    counts[k] = after[k].length;
+  }
   return JSON.stringify({
     success: true,
-    projectSpec: spec,
-    message: "Project spec updated. This context is returned in every call to get_phase_state.",
+    added,
+    counts,
+    message:
+      "Project spec updated. Values already present were kept, not duplicated. get_phase_state shows the newest " +
+      "entries per list, and the per-message context lists the spec.",
   });
 }

@@ -277,3 +277,47 @@ export function writeTargets(cmd: string): string[] {
   }
   return out;
 }
+
+// --- Where a test run happened (Claude 0.18.0) ---------------------------------------------
+
+const SCRIPT_EXT = /\.(m?[jt]sx?|cjs|py|rb|sh|swift|kt|kts|go|rs|php|exs?|java|scala)$/;
+
+function insideDir(p: string, root: string): boolean {
+  const rel = path.relative(path.resolve(root), path.resolve(p));
+  return !(rel.startsWith("..") || path.isAbsolute(rel));
+}
+
+/**
+ * The directory the FIRST test segment of `cmd` runs in — following `cd`/`pushd` in the
+ * command from the harness-reported `cwd` — and whether the run is outside `workspace`:
+ * its directory is, or it invokes a test script by a path outside it. An audit found a
+ * "24/24" that ran from the scratchpad; the outcome record could not show it. Undefined
+ * when no test segment is found.
+ */
+export function testRunLocation(
+  cmd: string,
+  cwd: string,
+  workspace: string,
+  extra: RegExp[] = []
+): { runDir: string; outsideWorkspace: boolean; externalScripts: string[] } | undefined {
+  const patterns = extra.length ? [...TEST_COMMAND_PATTERNS, ...extra] : TEST_COMMAND_PATTERNS;
+  const home = process.env.HOME || "/";
+  let dir = cwd;
+  for (const seg of parseShell(cmd)) {
+    const [head, ...rest] = seg.words;
+    if (head === "cd" || head === "pushd") {
+      const t = rest.find((a) => !a.startsWith("-"));
+      if (!t) dir = home;
+      else if (!/[$`]/.test(t)) dir = path.resolve(dir, t.replace(/^~(?=\/|$)/, home));
+      continue;
+    }
+    if (segmentIsTest(seg.words, patterns, 0)) {
+      const externalScripts = rest
+        .filter((a) => !a.startsWith("-") && SCRIPT_EXT.test(a) && !/[$`*?]/.test(a))
+        .map((a) => path.resolve(dir, a.replace(/^~(?=\/|$)/, home)))
+        .filter((p) => !insideDir(p, workspace));
+      return { runDir: dir, outsideWorkspace: !insideDir(dir, workspace) || externalScripts.length > 0, externalScripts };
+    }
+  }
+  return undefined;
+}

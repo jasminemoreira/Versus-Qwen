@@ -17,8 +17,8 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **8 sequential phases** with verifiable exit criteria — no skipping steps
 - **8 safeguards (S0-S7)** that prevent common AI agent errors (premature convergence, scope creep, reimplementation)
 - **Convergence score** (0-100) that gates advancement until the problem is truly understood
-- **15 MCP tools** for state management, decision recording, phase transitions, and meta-iteration (v1→v2)
-- **6 Qwen Code hooks** — context injection, edit blocking in early phases, loop detection, destructive command blocking, truncation detection, stop verification
+- **17 MCP tools** for state management, decision recording, phase transitions, and meta-iteration (v1→v2)
+- **Qwen Code hooks** — session start / compaction recovery, per-message state injection, edit blocking in early phases (file tools and shell writes), loop detection, test-outcome witnessing, destructive command blocking, truncation detection, stop verification
 - **Persistent decision registry** that survives context switches
 - **Gateway guard** that detects when models skip loading context
 - **Adversarial critique** with 7 universal + 8 conditional specialized lenses
@@ -31,7 +31,7 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Empirical `ui_runnable`** — exit criterion now requires explicit user confirmation that a P0 use case was executed end-to-end (literal user confirmation captured in `details`), not just "UI rendered"
 - **Original Scope Adversarial Review** at end of Phase 5 — mandatory comparison between P0 commitments and actual delivery, with 3 explicit user options (Continue / Renegotiate / Accept gaps as debt). Eliminates silent scope deferral by forcing every gap into a user decision recorded as `record_decision`.
 - **Ready-to-advance enforcement** — when all exit criteria of a phase are met but the phase has not advanced, three layers signal the LLM to call `advance_phase()` immediately: `_nextAction` field in `mark_exit_criterion` and `get_phase_state` responses + warning banner in the context-injection hook. Eliminates the "phase done but stopped on summary" failure pattern.
-- **Complete guidance injection** — every UserPromptSubmit injects the full methodology (cross-cutting rules + antipatterns + all 8 phase blocks). Replaces the previous compact-guidance summary, which could omit critical rules under context pressure. Token cost is bounded by prompt caching (static content cached after first injection per session). Single source of truth: no drift possible between compact and full.
+- **Guidance on demand, state every message** — `get_phase_guidance()` returns the global rules, triggers, anti-patterns and the full text of one phase (under Qwen Code's 25,000-char tool-result limit). Every UserPromptSubmit injects only the STATE (phase, warnings, spec, this cycle's decisions) within a 9,000-char budget, and the SessionStart hook puts the load-state-and-guidance instruction into the session's system instruction. Until 0.12.0 the full ~73K guidance was appended to every message and accumulated in the history.
 - **Brownfield bootstrap** — `init_project` now supports two modes: greenfield (empty workspace, full HSA) and brownfield (existing codebase). In brownfield mode, the AI reads surface files (README, configs, src/ structure), infers stack/modules/use-cases/vocabulary, presents a Bootstrap Proposal for user confirmation, then captures the as-is context as `projectSpec.constraints`/`patterns`/`stack` and AS-IS decisions in P0/P1. Phase 0 then runs in **DELTA MODE**: explores only the new change/feature, skipping HSA Level 1 (Domain) — already captured. Lets Versus take over projects already in progress without pretending they are greenfield.
 
 ## How It Works
@@ -77,7 +77,9 @@ The methodology maximizes `E = I₀/C` (relevant information / total context con
 
 | Hook | Event | Function |
 |---|---|---|
-| **inject-context** | `UserPromptSubmit` | Injects phase, score, and recent decisions into each prompt |
+| **inject-context** | `UserPromptSubmit` | Injects the state block (phase, warnings, spec, this cycle's decisions) into each prompt, within a 9,000-char budget |
+| **session-start** | `SessionStart` | Tells the model to load state + guidance; carries the state; shows a `📍 Versus` banner to the user |
+| **pre-compact** | `PreCompact` | Tells the compaction summary which Versus state to preserve (≤4,000 chars) |
 | **phase-gate** | `PreToolUse` (edit/write_file) | Blocks code editing in Phases 0-4 |
 | **loop-detector** | `PreToolUse` (bash) | Blocks a test run after 3 consecutive failures with no diagnosis recorded (S6) |
 | **test-outcome** | `PostToolUse` (bash) | Counts failed test runs; a passing run or a recorded diagnosis clears the counter |
@@ -125,7 +127,7 @@ The IACDM methodology demands strict instruction following, reliable MCP tool ca
 | Criterion | Why it matters |
 |---|---|
 | Instruction following | Each phase has detailed behavioral rules (~2-4k tokens). Models that summarize or skip steps break the methodology |
-| MCP tool reliability | The methodology relies on 15 tools being called consistently. Models that "narrate" tool calls instead of executing them are incompatible |
+| MCP tool reliability | The methodology relies on 17 tools being called consistently. Models that "narrate" tool calls instead of executing them are incompatible |
 | Context window | Phases 0-2 accumulate significant context. Minimum 32k tokens, recommended 128k+ |
 | Reasoning depth | Phases 0-4 (design) require architectural analysis, not code generation. Shallow reasoning produces shallow designs |
 
@@ -150,7 +152,7 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 | Gateway Guard | Model forgetting to load context (>30min without `get_phase_state`) |
 | Phase Gate hook | Code editing in Phases 0-4 (blocked regardless of model) |
 | Loop Detector | Blind debugging: 3 failed runs with no diagnosis named — safeguard S6 |
-| Complete Guidance | The full methodology injected into every prompt via hook |
+| Guidance on demand | `get_phase_guidance()` returns the full phase text; the session-start and per-message context say to call it |
 | Phase 7 Engine Hint | Forces meta-iteration offer even if model didn't read guidance |
 
 ## Requirements

@@ -4,7 +4,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { StateEngine } from "../../state/engine";
 
 import { getPhaseStateTool, getDecisionsTool, getExitCriteriaTool, updateProjectSpecTool, handleGetPhaseState, handleGetDecisions, handleGetExitCriteria, handleUpdateProjectSpec } from "./state-tools";
-import { advancePhaseTool, startIterationTool, startNewCycleTool, handleAdvancePhase, handleStartIteration, handleStartNewCycle } from "./transition-tools";
+import { advancePhaseTool, startIterationTool, startNewCycleTool, exportCycleTool, handleAdvancePhase, handleStartIteration, handleStartNewCycle, handleExportCycle } from "./transition-tools";
 import { recordDecisionTool, updateScoreTool, markExitCriterionTool, recordActivatedLensesTool, handleRecordDecision, handleUpdateScore, handleMarkExitCriterion, handleRecordActivatedLenses } from "./record-tools";
 import { checkSafeguardTool, checkAllSafeguardsTool, handleCheckSafeguard, handleCheckAllSafeguards } from "./safeguard-tools";
 import { checkSpecsStatusTool, handleCheckSpecsStatus } from "./specs-tools";
@@ -28,10 +28,11 @@ export const ALL_TOOLS: Tool[] = [
   getPhaseGuidanceTool,
   updateProjectSpecTool,
   startNewCycleTool,
+  exportCycleTool,
 ];
 
 // Tools exempt from gateway guard (they are themselves the "context loading")
-const GUARD_EXEMPT = new Set(["get_phase_state", "init_project", "start_new_cycle"]);
+const GUARD_EXEMPT = new Set(["get_phase_state", "init_project", "start_new_cycle", "export_cycle"]);
 
 const CONTEXT_WARNING =
   "MANDATORY ACTION: Call get_phase_state() and get_phase_guidance() BEFORE proceeding. " +
@@ -75,13 +76,13 @@ function dispatch(
     case "start_iteration":
       return handleStartIteration(engine, args as { phase: number });
     case "record_decision":
-      return handleRecordDecision(engine, args as { phase: number; category: string; content: string });
+      return handleRecordDecision(engine, args as { phase: number; category: string; content: string; proposedBy?: string; approvedBy?: string });
     case "record_activated_lenses":
       return handleRecordActivatedLenses(engine, args as unknown as { conditional: string[]; notActivated: { lens: string; reason: string }[] });
     case "update_score":
       return handleUpdateScore(engine, args as { score: number; breakdown: any });
     case "mark_exit_criterion":
-      return handleMarkExitCriterion(engine, args as { phase: number; criterion: string; met: boolean; details?: string });
+      return handleMarkExitCriterion(engine, args as { phase: number; criterion: string; met: boolean; details?: string; check_command?: string; check_expect?: string });
     case "check_safeguard":
       return handleCheckSafeguard(engine, args as { id: string });
     case "check_all_safeguards":
@@ -96,6 +97,8 @@ function dispatch(
       return handleUpdateProjectSpec(engine, args as { stack?: string[]; outOfScope?: string[]; patterns?: string[]; constraints?: string[] });
     case "start_new_cycle":
       return handleStartNewCycle(engine);
+    case "export_cycle":
+      return handleExportCycle(engine, args as { cycle?: number });
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }

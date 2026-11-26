@@ -62,7 +62,7 @@ export function handleAdvancePhase(engine: StateEngine, args: { target_phase: nu
       message: `Advanced to Phase ${args.target_phase}.`,
       currentPhase: newState?.currentPhase,
       currentIteration: newState?.currentIteration,
-      nextStep: `IMMEDIATELY follow the "## Phase ${args.target_phase}" section of the methodology already injected in your context — present it to the user and start its work. Do NOT wait for user input.`,
+      nextStep: `IMMEDIATELY call get_phase_guidance() NOW to load Phase ${args.target_phase} instructions and present them to the user. Do NOT wait for user input before calling get_phase_guidance().`,
     });
   } else {
     return JSON.stringify({
@@ -94,7 +94,9 @@ export const startNewCycleTool: Tool = {
     "Starts a new development cycle (v1→v2) after Phase 7 completion. " +
     "Resets phase to 0 while PRESERVING all decisions, projectSpec, and history from the previous cycle. " +
     "specs/ directory is also preserved as baseline for the new cycle. " +
-    "Phase 7 exit criteria must all be met before calling this tool. " +
+    "Phase 7 exit criteria must all be met, and the close needs an approval decision of Phase 7 " +
+    "(record_decision with approvedBy), before calling this tool. The closing cycle is ARCHIVED, with " +
+    "its exit criteria, transitions and last test run, and exported to .versus/cycles/cycle-N.md. " +
     "Use at the end of Phase 7 when the user wants to evolve the project to the next version.",
   inputSchema: {
     type: "object" as const,
@@ -108,8 +110,10 @@ export function handleStartNewCycle(engine: StateEngine): string {
   if (result.ok) {
     return JSON.stringify({
       success: true,
-      message: `New cycle started (cycle ${result.value.cycle}). Phase reset to 0. Previous decisions and specs/ preserved as baseline.`,
+      message: `Cycle ${result.value.archived} closed and archived${result.value.exportPath ? ` (readable export: ${result.value.exportPath})` : ""}. New cycle started (cycle ${result.value.cycle}). Phase reset to 0. Previous decisions and specs/ preserved as baseline.`,
       cycle: result.value.cycle,
+      archivedCycle: result.value.archived,
+      exportPath: result.value.exportPath,
       currentPhase: 0,
       hint: "Phase 0 of the new cycle starts from existing specs/ — knowledge is NOT lost. Use get_decisions() to review previous cycle context. Negative scope from the previous cycle can become new scope (with operator approval).",
       _modelSwitchAction: "⚠️ MODEL SWITCH RECOMMENDED — A new cycle starts at Phase 0 (design). If you switched to a smaller Qwen variant at the original LLM Switch Point in cycle " + (result.value.cycle - 1) + " Phase 4→5, you are likely STILL on that model. Phase 0 design benefits from the MOST CAPABLE Qwen variant. DISPLAY this notification to the user and recommend the same close+reopen+retomar Versus mechanic used at the original LLM Switch Point: (1) close this chat, (2) open a new chat with the design-grade model, (3) type `retomar Versus`. The new model recovers state cleanly via the inject-context hook (fires on that first message) and resumes Phase 0 of the new cycle.",
@@ -117,4 +121,28 @@ export function handleStartNewCycle(engine: StateEngine): string {
   } else {
     return JSON.stringify({ success: false, error: result.error });
   }
+}
+
+export const exportCycleTool: Tool = {
+  name: "export_cycle",
+  description:
+    "Writes a readable Markdown record of a cycle to .versus/cycles/: its transitions (with the " +
+    "design fingerprint), exit criteria with details and engine provenance, every decision of the " +
+    "cycle with proposedBy/approvedBy, and the last witnessed test run. Use it for audits, or when " +
+    "the user asks what happened in a cycle. state.json is not meant to be read by people. Closed " +
+    "cycles are exported automatically at start_new_cycle. With no argument, it exports the cycle " +
+    "in progress (cycle-N-in-progress.md).",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      cycle: { type: "number", description: "Cycle number. Omit for the cycle in progress." },
+    },
+    required: [],
+  },
+};
+
+export function handleExportCycle(engine: StateEngine, args: { cycle?: number }): string {
+  const r = engine.exportCycle(typeof args.cycle === "number" ? args.cycle : undefined);
+  if (!r.ok) return JSON.stringify({ success: false, error: r.error });
+  return JSON.stringify({ success: true, ...r.value });
 }

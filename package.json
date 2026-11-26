@@ -2,7 +2,7 @@
   "name": "versus-qwen",
   "displayName": "Versus for Qwen",
   "description": "IACDM orchestrator for Qwen Code — 8-phase structured development with adversarial critique, verification gates, and safeguards that close the AI verification gap",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "JasmineMoreira",
   "author": "Jasmine Moreira",
   "license": "MIT",
@@ -75,6 +75,7 @@
     "bundle": "node scripts/bundle.mjs",
     "build": "npm run compile && npm run compile:mcp && npm run bundle",
     "lint": "eslint src",
+    "pretest": "node scripts/bundle.mjs",
     "test": "node ./out/test/engine.test.js"
   },
   "devDependencies": {

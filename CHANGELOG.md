@@ -1,5 +1,100 @@
 # Changelog
 
+## [0.13.0] - 2026-11-26
+
+Tracks Versus Claude 0.18.0 → 0.19.0 (commits `99a041d`, `26fa5ea`, `b01d104`, `2300ad9`), following `PORT-0.18-0.19.md`.
+
+### Host contract, measured before any change (Qwen Code 0.28.4, the CLI bundled in companion `qwenlm.qwen-code-vscode-ide-companion-0.28.4`)
+These come from reading the CLI source, not from the Claude numbers:
+
+| Channel | What Qwen does | Source in the CLI |
+|---|---|---|
+| Hook stdout | Cut at **1 MiB** (logged, silent) | `MAX_OUTPUT_LENGTH2 = 1024*1024`, command hook runner |
+| Context key | Read **only** from `hookSpecificOutput.additionalContext`. A top-level `{additionalContext}` is ignored | `DefaultHookOutput.getRawAdditionalContext` |
+| Plain stdout as context | Only for SessionStart, UserPromptSubmit, UserPromptExpansion. For other events it becomes a `systemMessage` | `PLAIN_TEXT_CONTEXT_EVENTS` |
+| Escaping | `<` and `>` become `&lt;` and `&gt;` in every additionalContext | `getAdditionalContext` |
+| UserPromptSubmit | Appended to the user message as a `<qwen:user-prompt-submit-context>` part, with **no cut**. Only an identical context already in the history is not re-sent | `requestUserPromptSubmit`, `createUserPromptSubmitContextPart` |
+| SessionStart | Appended to the **system instruction**, re-applied on chat reset, **no cut**. `systemMessage` is shown to the user | `setSessionStartContext` |
+| PreCompact | Only `hookSpecificOutput.additionalContext`, used as extra compaction instructions and cut at **4,000** | `MAX_HOOK_INSTRUCTIONS_CHARS = 4e3` |
+| PostToolUse | Context appended to the tool result | `appendAdditionalContext` |
+| Stop | `systemMessage` goes to the user. `{decision:"block", reason}` blocks. Exit 2 also blocks, but reads the reason from stderr | `StopHookOutput`, `convertPlainTextToHookOutput` |
+| Tool / MCP result | Inlined up to **25,000** chars. Past that it is persisted to a file and the model gets a preview. Global setting `truncateToolOutputThreshold`; there is no per-tool override | `DEFAULT_TRUNCATE_TOOL_OUTPUT_THRESHOLD = 25e3` |
+| Command hook timeout | In **seconds** | `resolveCommandHookTimeoutMs` |
+
+What this means for the port:
+- Unlike Claude Code, **the full guidance did reach the model** in Qwen. The problem was different: the ~73K text was appended to **every** user message and was never de-duplicated, because the state part changes. So the history grew by ~73K+ per message.
+- The ~5.7K "spill" limit that 0.11.4 budgeted against was measured on the VS Code chat host (LocalQwen), not on Qwen Code.
+- Three hooks never reached the model: test-outcome (the S6 escalation), truncation-check and stop-verify (the warnings). This was a real defect here.
+
+### A — delivery channels
+- **A1:**
+  - The per-message injection is now **state only**, built by `hooks/state-block.ts` within a 9,000-char budget. Qwen sets no cap on this channel, so the budget is a token-economy choice, kept equal to Claude's.
+  - Lines that are never trimmed come first: header with version, update notice, READY, RESTRICTION, S6, the P2 lens warning, and the pointer to `get_phase_guidance()`. The P2 warning keeps this build's form, keyed on the criterion.
+  - After them come the spec (lists cut at 600) and this cycle's decisions.
+  - **`get_phase_guidance` returns the real text again** (global rules, triggers, anti-patterns and one phase), which undoes the 0.11.4 pointer. Measured per phase: P0 17,197 · P1 12,877 · **P2 21,291** · P3 9,806 · P4 9,621 · P5 15,588 · P6 19,430 · P7 10,071. All are under 25,000, and a test pins this. P2 has the least room, ~3.7K.
+- **A2: SessionStart and PreCompact are registered as command hooks** (`session-start.js`, `pre-compact.js`). Earlier notes, written against the 0.15.6 companion, said these events could not inject context. In 0.28.4 they can.
+  - SessionStart puts the "load state + guidance" instruction and the state into the system instruction. The `📍 Versus X ativo` banner goes to the user as a `systemMessage`.
+  - PreCompact tells the summary what to preserve. It uses `hookSpecificOutput`, because plain stdout is not read for that event, and stays under 4,000.
+- **A3: `hooks/hook-output.ts`** holds the Qwen shapes: `postToolUseContext`, `stopUserMessage`, `stopBlock` (exit 0), `preCompactContext` and `writeAndExit`. test-outcome, truncation-check and stop-verify go through it.
+- **A4:**
+  - `"pretest": "node scripts/bundle.mjs"`.
+  - The channel tests run the **bundle** (`out/bundle/*.js`) and check each event's output against the Qwen contract above. They also check that every registered hook is bundled and listed in **both** deploy paths.
+  - The esbuild trap is avoided by keeping the shared code in `state-block.ts`, which has no `main()`.
+  - `tsconfig` still excludes three hooks. That is harmless here: `out/hooks/` holds no stale copies of them, and the tests use the bundle.
+
+### B — engine, MCP, extension
+- **B1: cycles.**
+  - `startNewCycle` archives into `cycles[]` before resetting.
+  - Numbering is fixed: the current cycle is the number of 7→0 boundaries plus 1.
+  - New `export_cycle(cycle?)` tool, also added to the auto-approved permissions. It writes `.versus/cycles/cycle-N.md`.
+  - That file is also written when the Phase 7 approval is recorded.
+- **B2: approvals.** 3→4, 4→5, 6→7 and `start_new_cycle` require an `approval` decision of that phase, with `approvedBy`, recorded after the last entry into the phase. Ordering uses `decisionsAt`, not the clock. `record_decision` gains `proposedBy`/`approvedBy`.
+- **B3:** `cwd`, `runDir` and `outsideWorkspace` are recorded on test runs. A green run outside the project does not satisfy `tests_passing`. Qwen-specific: the run directory honours `run_shell_command`'s own `directory` param.
+- **B4:** each transition stores the sha256 and size of `architecture.md`.
+- **B5:**
+  - New `src/version.ts` (a test checks it matches `package.json`).
+  - `versusVersion` and `migrations[]` in the state, and a one-time update notice. Here every gate below arrived together, so a project without `versusVersion` gets the full list.
+  - The header ends in `| v0.13.0`.
+- **B6:** `update_project_spec` returns `{added, counts}`. It compares by value, because this build's `getProjectSpec` returns the live object.
+- **B7:** the S6 pattern comes from the structural reader (`parseShell`) and honours `.versus/test-commands`.
+- **B8: deploy.**
+  - `deployServer` writes `.versus/qwen/VERSION` and shows an error for a missing bundle; before, it skipped it silently.
+  - An `onDidChange` listener offers **Reload Window** when a new `JasmineMoreira.versus-qwen` is installed.
+  - **Pre-existing bug fixed:** `init_project`'s `BUNDLE_FILES` did not include `test-outcome.js`. It now includes it, plus session-start and pre-compact.
+
+### C — 0.19 form gates (existence and form, not truth)
+- **C1:** declared checks (`check_command`, `check_expect` = `exit:<n>` or `output:<regex>`).
+  - The test-outcome hook witnesses them on every `run_shell_command`, in any phase. Its top-level phase<5 early return is gone.
+  - The exit status comes from the multi-field harness read or the new `VERSUS_EXIT=` echo.
+  - The MCP server executes nothing.
+- **C2:** at 6→7, every `T-xx` of the latest `## V(N)` must appear in a test file.
+- **C3:** at 6→7, `## Desvios` must be present and non-empty in the current version.
+- **C4:** at 5→6, a `scope-inventory` decision with ✅/❌ is required.
+- **C5:** each lesson of the current cycle needs `guard: <id>|none`. `start_new_cycle` blocks until they do, and the `none` lessons are listed for the human.
+- **C6:** guidance adds T-xx ids (F1/F3), Desvios, declared checks and the 6→7 sign-off (F6), and the F5/F7/F3/F4 texts. "Bash" became "the shell (run_shell_command)".
+
+### D — research instrumentation removed
+- New `projectSpec` entries are plain strings again. Stamped legacy entries are still read.
+- The "the batch" and "cross-project analysis" rationales in the guidance now give the product reason. This build's own refusals already did.
+
+### Tests
+- **151 total** (113 → 151).
+- Existing fixtures gained `approve(3/4/6/7)`, a `scope-inventory` decision and `guard:` lines.
+- The pointer and timestamp tests were rewritten for the new behaviour.
+- The delivery-channel block was **rewritten for the Qwen contract**: `QWEN_PROJECT_DIR`, `run_shell_command`/`write_file`, the PreCompact 4,000 cut, Stop exit 0, and no Claude tool names in SessionStart.
+
+### Verified
+- A copy of a real 290 KB `state.json` (Goitacaz/Tools) was run through the bundled hooks:
+  - inject-context: 8,771 chars, update notice first;
+  - session-start: 7,529 chars plus the banner;
+  - pre-compact: 1,573 chars;
+  - `get_phase_state`: 5,038 chars;
+  - `get_decisions`: 3,699 chars.
+- New `scripts/audit-delivery.mjs` for the **Qwen transcript format** (`~/.qwen/projects/<path>/chats/*.jsonl`). It reads the delivered `<qwen:user-prompt-submit-context>` parts, MCP results (truncation prefix) and `[Versus]` texts inside tool results. SessionStart and PreCompact are reported as not observable in the transcript. It was validated on the only Qwen transcript on this machine (April, Qwen Code 0.14.4). **Field truth with 0.13.0 is still pending:** it needs a real Qwen session.
+
+### Not applicable / not ported
+- The Claude-only items: MultiEdit/NotebookEdit matchers, Claude's prompt-hook removal, `.claude/`, and the 10,000/2,000 preview logic. Each has a Qwen equivalent described above.
+
 ## [0.12.0] - 2026-11-25
 
 ### Fixed (seven defects from the first external study; tracks Versus Claude v0.17.0)

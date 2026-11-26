@@ -1,5 +1,7 @@
 // Versus core types
 
+import { VERSUS_VERSION } from "../version";
+
 export interface PhaseState {
   agent?: "copilot" | "claude" | "qwen";  // identifies which extension owns this state
   projectName: string;
@@ -27,12 +29,27 @@ export interface PhaseState {
     outputBytes?: number;
     exitCode?: number;
     exitSource?: "harness" | "echo";
+    cwd?: string;
+    runDir?: string;
+    outsideWorkspace?: boolean;
   };
   /** Phase 2 lens declarations — one entry per critique iteration (2↔3 loop). */
   activatedLenses?: LensActivation[];
   /** Schema version stamped at init. Its ABSENCE marks a pre-structured-lenses
    *  project, the only case where free-text lens declarations are still honoured. */
   stateVersion?: number;
+  /** Versus version that last opened this project (0.12.x+ of this build). Absent = a project
+   *  last opened by an older Versus. A mismatch with the running version triggers a one-time
+   *  update notice listing what the new version requires that the project lacks. */
+  versusVersion?: string;
+  /** Update notices issued — the migration record the auditor can read. */
+  migrations?: { from: string | null; to: string; at: string; pending: string[] }[];
+  /** Closed cycles, archived by start_new_cycle BEFORE the reset. Exit criteria (with
+   *  details and provenance), transitions and the test outcome of a cycle used to be wiped
+   *  when the next one began — the record lost its own history. Decisions are not copied
+   *  (they are preserved in `decisions` already); a cycle's decisions are those
+   *  timestamped within [startedAt, closedAt]. */
+  cycles?: CycleRecord[];
   lastPhaseStateCheck?: string;  // ISO timestamp — gateway guard for smaller models
   createdAt: string;             // ISO timestamp
   updatedAt: string;
@@ -49,6 +66,14 @@ export interface TestProvenance {
   outputBytes?: number;
   exitCode?: number;
   exitSource?: "harness" | "echo";
+  /** Session cwd the harness reported for the shell call. */
+  cwd?: string;
+  /** Directory the test runner actually ran in, after any `cd` in the command. */
+  runDir?: string;
+  /** True when the run happened outside the project (runDir outside the workspace, or a
+   *  test script invoked by a path outside it). Such a pass does not satisfy
+   *  tests_passing: an audit found a "24/24" that ran from the scratchpad. */
+  outsideWorkspace?: boolean;
 }
 
 /** Structured Phase 2 lens activation — one per critique iteration. */
@@ -116,6 +141,27 @@ export interface Decision {
   category: string;
   content: string;
   timestamp: string;
+  /** Cycle the decision was recorded in (Claude 0.18.0+; older decisions: derive from timestamps). */
+  cycle?: number;
+  /** Who proposed it — e.g. "Qwen" (the agent), "user". Explicit provenance (0.13.0+). */
+  proposedBy?: string;
+  /** Who approved it, and on what basis when it matters — e.g. "user (saw the demo on device)".
+   *  Required on the approval decision that gates 3→4, 4→5, 6→7 and the cycle close. */
+  approvedBy?: string;
+}
+
+/** One closed cycle, as archived by start_new_cycle. */
+export interface CycleRecord {
+  cycle: number;
+  startedAt: string;
+  closedAt: string;
+  phase0Score: number | null;
+  exitCriteria: ExitCriterionState[];
+  transitions: PhaseTransition[];
+  lastTestOutcome?: PhaseState["lastTestOutcome"];
+  decisionCount: number;
+  /** Path (relative to the workspace) of the Markdown export written at close. */
+  exportPath?: string;
 }
 
 export interface ExitCriterionState {
@@ -128,6 +174,17 @@ export interface ExitCriterionState {
    *  transition passes — not self-reported — so a post-mortem sees a degraded path
    *  (hook not nominal, legacy fallback) even if the agent logged nothing. Only the two
    *  verify-criteria carry it. */
+  /** A mechanical check DECLARED for this criterion, e.g. "OAuth gone from all 4 services"
+   *  → `grep -rl oauth services/ | wc -l` expecting output "0". The gate requires that the hook
+   *  WITNESSED that command run, after the declaration, with the expected result. An audit
+   *  found exactly such a criterion attested ("grep = 0") and never executed. */
+  check?: {
+    command: string;
+    /** "exit:<n>" (exit status via harness or the VERSUS_EXIT echo) or "output:<regex>". */
+    expect: string;
+    declaredAt: string;
+    witnessed?: { at: string; ok: boolean; exitCode?: number; outputTail: string; outputSha256: string };
+  };
   verifiedBy?: {
     path: "test-pass" | "lenses-recorded";
     nominal: boolean;                 // false = satisfied via a degraded path
@@ -156,6 +213,13 @@ export interface PhaseTransition {
   to: number;
   timestamp: string;
   criteriaMet: string[];
+  /** Content fingerprint of design artifacts at the moment of the transition (Claude 0.18.0+):
+   *  evidence, independent of git, that the design existed — in that exact content —
+   *  before the code that follows it. */
+  artifacts?: { path: string; sha256: string; bytes: number }[];
+  /** decisions.length at the moment of the transition (Claude 0.18.0+): orders decisions against
+   *  transitions without trusting clock resolution (two events in one millisecond). */
+  decisionsAt?: number;
 }
 
 export interface TransitionError {
@@ -178,6 +242,7 @@ export type Result<T, E> =
 export function createDefaultState(name: string, description: string): PhaseState {
   return {
     agent: "qwen",
+    versusVersion: VERSUS_VERSION,
     projectName: name,
     projectDescription: description,
     projectSpec: { stack: [], outOfScope: [], patterns: [], constraints: [] },

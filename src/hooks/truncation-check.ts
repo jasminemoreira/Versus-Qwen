@@ -12,10 +12,10 @@ interface HookInput {
   tool_response: string | Record<string, unknown>;
 }
 
+import { postToolUseContext, writeAndExit } from "./hook-output";
+
 function warn(msg: string): void {
-  const output = { additionalContext: msg };
-  process.stdout.write(JSON.stringify(output) + "\n");
-  process.exit(0);
+  writeAndExit(postToolUseContext(msg));   // hookSpecificOutput — the top-level form never reached the model
 }
 
 function pass(): void {

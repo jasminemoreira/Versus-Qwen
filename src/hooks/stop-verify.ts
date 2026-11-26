@@ -7,21 +7,22 @@
 
 import { StateEngine } from "../state/engine";
 import { spawnSync } from "child_process";
+import { stopBlock, stopUserMessage, writeAndExit } from "./hook-output";
 
 interface HookInput {
   stop_hook_active?: boolean;
 }
 
 function block(reason: string): void {
-  const output = { decision: "block", reason };
-  process.stdout.write(JSON.stringify(output) + "\n");
-  process.exit(2);
+  // decision:block on stdout, exit 0. (Exit 2 also blocks and still parses the JSON, but
+  // falls back to stderr, which is empty here, if the JSON does not validate.)
+  writeAndExit(stopBlock(reason), 0);
 }
 
 function warn(msg: string): void {
-  const output = { additionalContext: msg };
-  process.stdout.write(JSON.stringify(output) + "\n");
-  process.exit(0);
+  // To the USER, as a systemMessage. The old top-level additionalContext reached nobody: the
+  // transcript records content ''.
+  writeAndExit(stopUserMessage(msg), 0);
 }
 
 function pass(): void {
@@ -217,11 +218,11 @@ function main() {
         (timeoutNote ? `\n\n${timeoutNote}` : "")
       );
     } else if (timeoutNote) {
-      warn(`[Versus] ${timeoutNote} State this to the user.`);
+      warn(`[Versus] ${timeoutNote}`);
     } else if (checksRun === 0) {
       warn(
         "[Versus] No type-checker, linter, or test suite detected. " +
-        "Task completion is unverified. State this to the user."
+        "Task completion is unverified."
       );
     } else {
       pass();
