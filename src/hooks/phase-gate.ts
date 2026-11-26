@@ -19,7 +19,7 @@
 
 import * as path from "path";
 import { StateEngine } from "../state/engine";
-import { writeTargets } from "./shell-parse";
+import { writeTargets } from "../shell/shell-parse";
 
 const SHELL_TOOL = "run_shell_command";
 

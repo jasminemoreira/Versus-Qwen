@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { randomUUID, createHash } from "crypto";
 import { VERSUS_VERSION } from "../version";
-import { parseShell, TEST_COMMAND_PATTERNS, loadExtraTestPatterns } from "../hooks/shell-parse";
+import { parseShell, TEST_COMMAND_PATTERNS, loadExtraTestPatterns } from "../shell/shell-parse";
 import {
   PhaseState,
   Decision,

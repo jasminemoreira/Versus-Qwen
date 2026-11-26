@@ -8,7 +8,7 @@
 // Safeguard S6: "STOP if debugging by trial-and-error instead of naming a cause"
 
 import { StateEngine, LOOP_FAILURE_THRESHOLD } from "../state/engine";
-import { isTestCommand, loadExtraTestPatterns } from "./shell-parse";
+import { isTestCommand, loadExtraTestPatterns } from "../shell/shell-parse";
 
 interface HookInput {
   tool_name: string;

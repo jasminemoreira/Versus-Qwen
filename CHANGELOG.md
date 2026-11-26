@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.1] - 2026-11-26
+
+### Fixed (hotfix; tracks Versus Claude 0.19.1)
+- **Symptom:** Init Project failed with `Error initializing project`. So did anything else that loads the state engine in the extension host.
+- **Cause:** the 0.13.0 port made `src/state/engine.ts` import `../hooks/shell-parse` (for the S6 pattern normalization). `.vscodeignore` excludes `out/hooks/**` because hooks ship as bundles. The bundles were fine, since esbuild inlines `shell-parse`, but the extension's own `out/state/engine.js` could not resolve the module: `Cannot find module '../hooks/shell-parse'`. The tests did not catch it because they run from the full `out/`, where the file exists.
+- **Fix:**
+  - `shell-parse.ts` moved to `src/shell/`. It is not a hook: the engine uses it too. All importers were updated: `hooks/loop-detector.ts`, `hooks/phase-gate.ts`, `hooks/test-outcome.ts`, `state/engine.ts` and `test/engine.test.ts`.
+  - The `build` script now cleans `out/` first (new `clean` script), so the package never carries compiled leftovers of deleted modules.
+- **Guard test** (`=== Packaging ===`, copied from Claude): it reads `.vscodeignore` and fails if shipped code imports from an excluded directory (`hooks`, `mcp`, `test`). It was verified to fail on the 0.13.0 layout.
+- **Verified in the package, not only in the tests:** the 0.13.0 `.vsix`, unzipped, fails `require('extension/out/state/engine')` with the error above. The 0.13.1 `.vsix` loads it, `initProject` works, and the package contains `extension/out/shell/shell-parse.js`. 152 tests.
+
 ## [0.13.0] - 2026-11-26
 
 Tracks Versus Claude 0.18.0 → 0.19.0 (commits `99a041d`, `26fa5ea`, `b01d104`, `2300ad9`), following `PORT-0.18-0.19.md`.
