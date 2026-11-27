@@ -1,6 +1,6 @@
 # Versus for Qwen
 
-**IACDM (Iterative Adversarial Convergence Development Methodology) orchestrator for Qwen Code.**
+**IACDM (Interactive Adversarial Convergence Development Methodology) orchestrator for Qwen Code.**
 
 An original methodology created by [Jasmine Moreira](https://github.com/jasminemoreira) that transforms LLMs from reactive code generators into disciplined agents following a structured 8-phase process — from problem discovery to delivery with tests and post-review.
 
@@ -10,7 +10,7 @@ AI coding tools (Lovable, Cursor, Claude Code, Qwen Code, ChatGPT) all share the
 
 **The real distinction isn't between tools — it's between process and no process.**
 
-Versus implements the AG/AV (Generative Agent / Verification Agent) model: the AI generates, external agents (automated tests + human operator) verify at discrete **gates**. Errors are caught at the earliest possible phase, not in production.
+Versus implements the GA/VA (Generative Agent / Verification Agent) model: the AI generates, external agents (automated tests + human operator) verify at discrete **gates**. The gates are enforced by a state machine outside the model — the agent may request advancement, not grant it. Errors are caught at the earliest possible phase, not in production.
 
 ## Features
 
@@ -21,7 +21,7 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 - **Qwen Code hooks** — session start / compaction recovery, per-message state injection, edit blocking in early phases (file tools and shell writes), loop detection, test-outcome witnessing, destructive command blocking, truncation detection, stop verification
 - **Persistent decision registry** that survives context switches
 - **Gateway guard** that detects when models skip loading context
-- **Adversarial critique** with 7 universal + 8 conditional specialized lenses
+- **Adversarial critique** with up to 19 specialized lenses — 7 universal + 12 conditional (8 situational, 4 domain transfer); in a pre-registered 12-project experiment, every lens found defects no other lens found
 - **VS Code sidebar** showing methodology state in real time
 - **Multi-session testing protocol** for Phase 6 continuity across sessions
 - **Phase 6 session renewal** to decouple implementer from tester (reduces confirmation bias)
@@ -39,7 +39,7 @@ Versus implements the AG/AV (Generative Agent / Verification Agent) model: the A
 ```
 Phase 0: Problem Discovery    → HSA 5-level exploration (score >= 90 to advance)
 Phase 1: Architecture         → Define modules, interfaces, patterns
-Phase 2: Adversarial Critique → Attack the architecture with specialized lenses
+Phase 2: Adversarial Critique → Attack the architecture with up to 19 specialized lenses
 Phase 3: Simplification       → Address criticals, simplify (loops with Phase 2)
 Phase 4: Convergence Gate     → Validate all exit criteria + safeguards
 Phase 5: Implementation       → Code the final architecture
@@ -61,7 +61,7 @@ The most distinctive contribution. Structures problem exploration in 5 levels, e
 
 ### Context Efficiency
 
-The methodology maximizes `E = I₀/C` (relevant information / total context consumed) through granularization: each session focuses on one module with just its interface signatures, keeping context efficiency near 1.0 instead of degrading to 0.3+ in monolithic sessions.
+The methodology maximizes `E = I₀/C` (relevant information / total context consumed) through granularization: each session focuses on one module with just its interface signatures, so `C` stays bounded and `I₀` remains a large fraction of it — while in a monolithic session `E` tends to zero as the system grows. (`E` is a conceptual definition, not a measured metric.)
 
 ## Quick Start
 
@@ -105,18 +105,18 @@ The methodology maximizes `E = I₀/C` (relevant information / total context con
 | S6 | Do Not Reimplement | Recreating what already exists |
 | S7 | Sequence Discipline | Starting tangential discussions during implementation |
 
-## The AG/AV Model
+## The GA/VA Model
 
 ```
-F₀ → G₀ → F₁ → G₁ → ... → Fₙ → Gₙ → delivery
+P₀ → G₀ → P₁ → G₁ → ... → Pₙ → Gₙ → delivery
       ↑              ↑                    ↑
-  AV evaluates   AV evaluates        AV evaluates
+  VA evaluates   VA evaluates        VA evaluates
 ```
 
-- **AG (Generative Agent):** The LLM. Produces artifacts without verification capability.
-- **AV-automatic:** Tests, linters, compilers — binary verdict on formalizable properties.
-- **AV-human:** The operator — evaluates semantic adequacy, usability, domain correctness.
-- **Gate (Gₖ):** Discrete point where progression requires AV approval. Rejection feeds concrete error information back to AG.
+- **GA (Generative Agent):** The LLM. Produces artifacts without verification capability.
+- **VA-automatic:** Tests, linters, compilers — binary verdict on formalizable properties.
+- **VA-human:** The operator — evaluates semantic adequacy, usability, domain correctness.
+- **Gate (Gₖ):** Discrete point where progression requires VA approval. Rejection feeds concrete error information back to the GA.
 
 ## LLM Compatibility
 
@@ -143,7 +143,7 @@ The IACDM methodology demands strict instruction following, reliable MCP tool ca
 
 The methodology includes a natural **LLM Switch Point at Phase 4**. The architecture is fully validated and persisted in `state.json` + `specs/`, so no context is lost when switching models.
 
-> **Rule of thumb:** The cost of architectural error (detected in Phase 5-6) is 10-100x the cost of using a more capable model in Phases 0-4. Invest in reasoning where reasoning matters.
+> **Rule of thumb:** An architectural error detected in Phase 5-6 costs far more than using a more capable model in Phases 0-4. Invest in reasoning where reasoning matters.
 
 ### Built-in Protections for Weaker Models
 
@@ -168,9 +168,11 @@ The methodology includes a natural **LLM Switch Point at Phase 4**. The architec
 ## Related Extensions
 
 - **[Versus for Claude](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-claude)** — IACDM for Claude Code
-- **[Versus for Copilot](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-copilot)** — IACDM for GitHub Copilot Agent Mode
+- **[Versus for Kimi](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-kimi)** — IACDM for Kimi Code
+- **[Versus for Cursor](https://open-vsx.org/extension/jmoreira/versus-cursor)** — IACDM for Cursor's agent
+- **[Versus for Local Qwen](https://marketplace.visualstudio.com/items?itemName=jasminemoreira.versus-localqwen)** — IACDM for local models served by Ollama in VS Code Agent Mode
 
-All extensions share the same `.versus/state.json` — a project stays interchangeable between Claude Code and Qwen Code (run the design phases in one, hand off to the other, same state). Each extension keeps its own runtime in its own subfolder (`.versus/qwen/` for this one), so co-installed extensions never collide.
+All extensions share the same `.versus/state.json` — a project stays interchangeable between agents, e.g. Claude Code and Qwen Code (run the design phases in one, hand off to the other, same state). Each extension keeps its own runtime in its own subfolder (`.versus/qwen/` for this one), so co-installed extensions never collide.
 
 ## References
 
